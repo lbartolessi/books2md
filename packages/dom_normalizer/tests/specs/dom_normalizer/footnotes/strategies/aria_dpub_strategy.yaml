@@ -1,0 +1,44 @@
+# File: tests/specs/dom_normalizer/footnotes/strategies/aria_dpub_strategy.yaml
+package: footnotes
+dependencies: ["core"]
+# pipeline_position is not applicable for a single strategy test.
+test_cases:
+  - id: EPUB3_TYPE_CONVERSION
+    target: "AriaDpubStrategy.process - EPUB3 Type"
+    description: "Verifies a standard footnote using epub:type attributes is correctly normalized."
+    input:
+      html: '<body><p>Text with a note<a epub:type="noteref" href="#fn1">1</a>.</p><aside epub:type="footnote" id="fn1"><p>This is the note.</p></aside></body>'
+    expected:
+      html: '<body><p>Text with a note<a href="#fn-1" id="fnref-1" role="doc-noteref">1</a>.</p><section role="doc-endnotes"><ol><li id="fn-1" role="doc-endnote"><p>This is the note. <a class="footnote-backref" href="#fnref-1" role="doc-backlink">↩</a></p></li></ol></section></body>'
+
+  - id: ARIA_ROLE_CONVERSION
+    target: "AriaDpubStrategy.process - ARIA Role"
+    description: "Verifies a standard footnote using DPUB-ARIA roles is correctly normalized."
+    input:
+      html: '<body><p>Text with a note<a role="doc-noteref" href="#fn1">1</a>.</p><div role="doc-footnote" id="fn1"><p>This is the note.</p></div></body>'
+    expected:
+      html: '<body><p>Text with a note<a href="#fn-1" id="fnref-1" role="doc-noteref">1</a>.</p><section role="doc-endnotes"><ol><li id="fn-1" role="doc-endnote"><p>This is the note. <a class="footnote-backref" href="#fnref-1" role="doc-backlink">↩</a></p></li></ol></section></body>'
+
+  - id: ORPHAN_NOTE_HANDLING
+    target: "AriaDpubStrategy.process - Orphan Note"
+    description: "Verifies an unreferenced note body is correctly removed from the DOM."
+    input:
+      html: '<body><p>Text without a callout.</p><aside epub:type="footnote" id="fn1"><p>This note should be removed.</p></aside></body>'
+    expected:
+      html: "<body><p>Text without a callout.</p></body>"
+
+  - id: DANGLING_CALLOUT_HANDLING
+    target: "AriaDpubStrategy.process - Dangling Callout"
+    description: "Verifies a callout pointing to a non-existent note is left as-is but reported as an anomaly."
+    input:
+      html: '<body><p>Text with a <a epub:type="noteref" href="#nonexistent">dangling callout</a>.</p></body>'
+    expected:
+      html: '<body><p>Text with a <a epub:type="noteref" href="#nonexistent">dangling callout</a>.</p></body>'
+
+  - id: IDLE_RUN_NO_MARKERS
+    target: "AriaDpubStrategy.can_process"
+    description: "Verifies the strategy remains idle when no semantic footnote markers are present."
+    input:
+      html: "<body><p>A clean paragraph with no footnotes.</p></body>"
+    expected:
+      html: "<body><p>A clean paragraph with no footnotes.</p></body>"

@@ -1,0 +1,113 @@
+# File: tests/specs/dom_normalizer/poetry/indentation_helper.yaml
+package: "poetry"
+dependencies: ["core"]
+pipeline_position: 4
+test_cases:
+  - id: INDENT_CALCULATION_EM
+    target: "PoetryIndentationHelper.calculate_indent"
+    description: "Verifies indentation from `margin-left` in `em` is converted to em-spaces."
+    context:
+      em_to_indent_ratio: 1.0
+      px_to_em_ratio: 0.0625
+      percent_to_indent_ratio: 0.5
+      nbsp_to_indent_ratio: 0.5
+    input:
+      html: '<body><blockquote><p style="margin-left: 2em;">Indented line.</p></blockquote></body>'
+    expected:
+      html: '<body><blockquote><div class="poetry-block"><span>  </span>Indented line.</div></blockquote></body>'
+      telemetry:
+        detected_poems_count: 1
+
+  - id: INDENT_CALCULATION_PX
+    target: "PoetryIndentationHelper.calculate_indent"
+    description: "Verifies indentation from `padding-left` in `px` is converted to em-spaces."
+    context:
+      em_to_indent_ratio: 1.0
+      px_to_em_ratio: 0.0625
+      percent_to_indent_ratio: 0.5
+      nbsp_to_indent_ratio: 0.5
+    input:
+      html: '<body><blockquote><p style="padding-left: 32px;">Indented line.</p></blockquote></body>'
+    expected:
+      html: '<body><blockquote><div class="poetry-block"><span>  </span>Indented line.</div></blockquote></body>'
+      telemetry:
+        detected_poems_count: 1
+
+  - id: INDENT_CALCULATION_PERCENT
+    target: "PoetryIndentationHelper.calculate_indent"
+    description: "Verifies indentation from `text-indent` in `%` is converted to em-spaces."
+    context:
+      em_to_indent_ratio: 1.0
+      px_to_em_ratio: 0.0625
+      percent_to_indent_ratio: 0.5
+      nbsp_to_indent_ratio: 0.5
+    input:
+      html: '<body><blockquote><p style="text-indent: 4%;">Indented line.</p></blockquote></body>'
+    expected:
+      html: '<body><blockquote><div class="poetry-block"><span>  </span>Indented line.</div></blockquote></body>'
+      telemetry:
+        detected_poems_count: 1
+
+  - id: INDENT_CALCULATION_NBSP
+    target: "PoetryIndentationHelper.calculate_indent"
+    description: "Verifies indentation from leading `&nbsp;` is converted to em-spaces."
+    context:
+      em_to_indent_ratio: 1.0
+      px_to_em_ratio: 0.0625
+      percent_to_indent_ratio: 0.5
+      nbsp_to_indent_ratio: 0.5
+    input:
+      html: "<body><blockquote><p>&nbsp;&nbsp;&nbsp;&nbsp;Indented line.</p></blockquote></body>"
+    expected:
+      html: '<body><blockquote><div class="poetry-block"><span>  </span>Indented line.</div></blockquote></body>'
+      telemetry:
+        detected_poems_count: 1
+  - id: INDENTED_LINE_WITH_TEXT_NBSP
+    target: "PoetryIndentationHelper.calculate_indent"
+    description: "Verifies a line with leading `&nbsp;` followed by text is correctly indented."
+    context:
+      em_to_indent_ratio: 1.0
+      px_to_em_ratio: 0.0625
+      percent_to_indent_ratio: 0.5
+      nbsp_to_indent_ratio: 0.5
+    input:
+      html: "<body><blockquote><p>Line 1</p><p>&nbsp;&nbsp;Some indented text.</p><p>Line 2</p></blockquote></body>"
+    expected:
+      html: '<body><blockquote><div class="poetry-block">Line 1<br/><span> </span>Some indented text.<br/>Line 2</div></blockquote></body>'
+      telemetry:
+        detected_poems_count: 1
+
+  - id: STANZA_BREAK_EMPTY_NODE
+    target: "PoetryIndentationHelper.node_has_renderable_text"
+    description: "Verifies an empty paragraph between lines creates a stanza break."
+    input:
+      html: "<body><blockquote><p>Line 1</p><p></p><p>Line 2</p></blockquote></body>"
+    expected:
+      html: '<body><blockquote><div class="poetry-block">Line 1<br/><br/>Line 2</div></blockquote></body>'
+      telemetry:
+        detected_poems_count: 1
+
+  - id: STANZA_BREAK_WHITESPACE_NODE
+    target: "PoetryIndentationHelper.node_has_renderable_text"
+    description: "Verifies a paragraph with only whitespace creates a stanza break."
+    input:
+      html: "<body><blockquote><p>Line 1</p><p>  \t  </p><p>Line 2</p></blockquote></body>"
+    expected:
+      html: '<body><blockquote><div class="poetry-block">Line 1<br/><br/>Line 2</div></blockquote></body>'
+      telemetry:
+        detected_poems_count: 1
+
+  - id: NO_STANZA_BREAK_FROM_NBSP_LINE
+    target: "PoetryIndentationHelper.is_indentation_only_line"
+    description: "Verifies a line with only `&nbsp;` is an indented empty line, not a stanza break."
+    context:
+      em_to_indent_ratio: 1.0
+      px_to_em_ratio: 0.0625
+      percent_to_indent_ratio: 0.5
+      nbsp_to_indent_ratio: 0.5
+    input:
+      html: "<body><blockquote><p>Line 1</p><p>&nbsp;&nbsp;&nbsp;&nbsp;</p><p>Line 2</p></blockquote>"
+    expected: # Updated to reflect the new explicit span for indent-only lines
+      html: '<body><blockquote><div class="poetry-block">Line 1<br/><span>  </span><span class="poetry-indent-only-line"> </span><br/>Line 2</div></blockquote></body>'
+      telemetry:
+        detected_poems_count: 1

@@ -1,0 +1,84 @@
+# File: tests/specs/dom_normalizer/blockquote_processor/epigraph_strategy.yaml
+package: blockquote_processor
+dependencies: ["core"]
+pipeline_position: 4
+test_cases:
+  - id: BASIC_EPIGRAPH_CONVERSION
+    target: "EpigraphStrategy.find_and_apply - Mutation"
+    description: "Verifies a stylistically distinct paragraph (right-aligned) is wrapped in a blockquote with the 'epigraph' class."
+    input:
+      html: '<body><p style="text-align: right;">This is an epigraph.</p></body>'
+    expected:
+      html: '<body><blockquote class="epigraph"><p style="text-align: right;">This is an epigraph.</p></blockquote></body>'
+      telemetry:
+        epigraphs_identified_count: 1
+
+  - id: IGNORE_NON_P_TAG
+    target: "EpigraphStrategy - Rule: Must be a <p> tag"
+    description: "Verifies that a non-<p> tag (e.g., a div), even if styled as an epigraph, is ignored."
+    input:
+      html: '<div style="text-align: right;">This is not an epigraph.</div>'
+    expected:
+      html: '<div style="text-align: right;">This is not an epigraph.</div>'
+      telemetry:
+        epigraphs_identified_count: 0
+
+  - id: IGNORE_ALREADY_IN_BLOCKQUOTE
+    target: "EpigraphStrategy - Rule: Must not be inside a <blockquote>"
+    description: "Verifies that a paragraph that would otherwise be an epigraph is ignored if it's already inside a blockquote."
+    input:
+      html: '<body><blockquote><p style="text-align: right;">This is an epigraph.</p></blockquote></body>'
+    expected:
+      html: '<body><blockquote><p style="text-align: right;">This is an epigraph.</p></blockquote></body>'
+      telemetry:
+        epigraphs_identified_count: 0
+
+  - id: IGNORE_NOT_STYLISTICALLY_DISTINCT
+    target: "EpigraphStrategy - Rule: Must be stylistically distinct"
+    description: "Verifies that a plain paragraph without right-alignment or italics is ignored."
+    input:
+      html: "<body><p>This is just a normal paragraph.</p></body>"
+    expected:
+      html: "<body><p>This is just a normal paragraph.</p></body>"
+      telemetry:
+        epigraphs_identified_count: 0
+
+  - id: IGNORE_CHAR_LIMIT_OFF_BOUNDARY
+    target: "EpigraphStrategy - Rule: Character limit (>300)"
+    description: "Verifies a stylistically valid paragraph with more than 300 characters is not converted."
+    input:
+      html: '<p style="text-align: right;">aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</p>'
+    expected:
+      html: '<p style="text-align: right;">aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</p>'
+      telemetry:
+        epigraphs_identified_count: 0
+
+  - id: ACCEPT_CHAR_LIMIT_ON_BOUNDARY
+    target: "EpigraphStrategy - Rule: Character limit (<=300)"
+    description: "Verifies a stylistically valid paragraph with exactly 300 characters is converted."
+    input:
+      html: '<p style="text-align: right;">aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</p>'
+    expected:
+      html: '<blockquote class="epigraph"><p style="text-align: right;">aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</p></blockquote>'
+      telemetry:
+        epigraphs_identified_count: 1
+
+  - id: IGNORE_LOW_TTR_CANDIDATE
+    target: "EpigraphStrategy._is_candidate_valid - TTR filter"
+    description: "Verifies a stylistically valid candidate is rejected if it has a low Text-to-Tag Ratio (e.g., a TOC entry)."
+    input:
+      html: '<p style="font-style: italic;"><a>1.</a> <a>Chapter Title</a></p>'
+    expected:
+      html: '<p style="font-style: italic;"><a>1.</a> <a>Chapter Title</a></p>'
+      telemetry:
+        epigraphs_identified_count: 0
+
+  - id: IGNORE_HIGH_ANCHOR_DENSITY
+    target: "EpigraphStrategy._is_candidate_valid - Anchor density filter"
+    description: "Verifies a stylistically valid candidate is rejected if its anchor text density is over 30%."
+    input:
+      html: '<p style="font-style: italic;">This is a sentence with <a>way too much link text</a> compared to the rest.</p>'
+    expected:
+      html: '<p style="font-style: italic;">This is a sentence with <a>way too much link text</a> compared to the rest.</p>'
+      telemetry:
+        epigraphs_identified_count: 0

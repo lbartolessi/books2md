@@ -1,0 +1,94 @@
+# File: tests/specs/dom_normalizer/navigation_purger.yaml
+package: navigation_purger
+dependencies: ["core"]
+pipeline_position: 2
+test_cases:
+  - id: PURGE_NATIVE_NAV_TAG
+    target: "Native <nav> tag removal"
+    description: "Verifies that a standard HTML5 <nav> element is identified and purged."
+    input:
+      html: '<body><nav><ul><li><a href="/home">Home</a></li></ul></nav><p>Main content.</p></body>'
+    expected:
+      html: "<body><p>Main content.</p></body>"
+      telemetry:
+        nav_elements_purged: 1
+
+  - id: PURGE_ROLE_TOC
+    target: "ARIA role='doc-toc' removal"
+    description: "Verifies that a container with role='doc-toc' (common in EPUBs) is purged."
+    input:
+      html: '<body><div role="doc-toc"><h3>Table of Contents</h3><ol><li>Chapter 1</li></ol></div><p>Main content.</p></body>'
+    expected:
+      html: "<body><p>Main content.</p></body>"
+      telemetry:
+        nav_elements_purged: 1
+
+  - id: PURGE_ROLE_NAVIGATION
+    target: "ARIA role='navigation' removal"
+    description: "Verifies that a container with role='navigation' is purged."
+    input:
+      html: '<body><div role="navigation"><ul><li><a href="/home">Home</a></li></ul></div><p>Main content.</p></body>'
+    expected:
+      html: "<body><p>Main content.</p></body>"
+      telemetry:
+        nav_elements_purged: 1
+
+  - id: PURGE_CLASS_MENU
+    target: "Class-based removal ('menu')"
+    description: "Verifies that an element with a 'menu' class is identified and purged."
+    input:
+      html: '<body><ul class="menu"><li><a href="#">Item 1</a></li></ul><p>Main content.</p></body>'
+    expected:
+      html: "<body><p>Main content.</p></body>"
+      telemetry:
+        nav_elements_purged: 1
+
+  - id: PURGE_CLASS_TOC
+    target: "Class-based removal ('toc')"
+    description: "Verifies that an element with a 'toc' class is identified and purged."
+    input:
+      html: '<body><div class="toc"><h3>Contents</h3></div><p>Main content.</p></body>'
+    expected:
+      html: "<body><p>Main content.</p></body>"
+      telemetry:
+        nav_elements_purged: 1
+
+  - id: PURGE_UL_HIGH_LINK_DENSITY
+    target: "Link density heuristic (above threshold)"
+    description: "Verifies a <ul> with link density > 0.7 is purged. (Testing 3/3 = 1.0)"
+    input:
+      html: '<body><ul><li><a href="#">Link 1</a></li><li><a href="#">Link 2</a></li><li><a href="#">Link 3</a></li></ul><p>Main content.</p></body>'
+    expected:
+      html: "<body><p>Main content.</p></body>"
+      telemetry:
+        nav_elements_purged: 1
+
+  - id: PRESERVE_UL_LOW_LINK_DENSITY
+    target: "Link density heuristic (below threshold)"
+    description: "Verifies a <ul> with link density <= 0.7 is preserved. (Testing 2/3 = 0.66)"
+    input:
+      html: '<body><ul><li><a href="#">Link 1</a></li><li><a href="#">Link 2</a></li><li>Not a link</li></ul><p>Main content.</p></body>'
+    expected:
+      html: '<body><ul><li><a href="#">Link 1</a></li><li><a href="#">Link 2</a></li><li>Not a link</li></ul><p>Main content.</p></body>'
+      telemetry:
+        nav_elements_purged: 0
+
+  - id: PRESERVE_DIV_HIGH_LINK_DENSITY_NO_CLASS
+    target: "<div> link density exception"
+    description: "Verifies a <div> with high link density but no nav class/role is preserved."
+    input:
+      html: '<body><div><p><a href="#">Citation 1</a></p><p><a href="#">Citation 2</a></p></div><p>Main content.</p></body>'
+    expected:
+      html: '<body><div><p><a href="#">Citation 1</a></p><p><a href="#">Citation 2</a></p></div><p>Main content.</p></body>'
+      telemetry:
+        nav_elements_purged: 0
+
+  - id: PRESERVE_NAV_TAG_INSIDE_CODE_BLOCK
+    target: "Code Shield guard clause"
+    description: "Verifies that navigation markup inside a <code> or <pre> block is not purged."
+    input:
+      html: "<body><pre><code>&lt;nav&gt;This is a code example.&lt;/nav&gt;</code></pre><p>Main content.</p></body>"
+    expected:
+      html: "<body><pre><code>&lt;nav&gt;This is a code example.&lt;/nav&gt;</code></pre><p>Main content.</p></body>"
+      telemetry:
+        nav_elements_purged: 0

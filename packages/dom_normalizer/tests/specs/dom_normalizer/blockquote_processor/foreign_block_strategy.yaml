@@ -1,0 +1,112 @@
+# File: tests/specs/dom_normalizer/blockquote_processor/foreign_block_strategy.yaml
+package: blockquote_processor
+dependencies: ["core"]
+pipeline_position: 4
+test_cases:
+  - id: BASIC_FOREIGN_BLOCK_CONVERSION
+    target: "ForeignBlockStrategy.find_and_apply - Mutation"
+    description: "Verifies a paragraph with a foreign 'lang' attribute is correctly wrapped in a 'foreign-block' blockquote."
+    context:
+      primary_language: "en"
+    input:
+      html: '<p lang="fr">Ceci est un paragraphe en français pour tester la conversion de base.</p>'
+    expected:
+      html: '<blockquote class="foreign-block" lang="fr"><p>Ceci est un paragraphe en français pour tester la conversion de base.</p></blockquote>'
+      telemetry:
+        foreign_blocks_identified_count: 1
+
+  - id: IGNORE_NON_P_TAG
+    target: "ForeignBlockStrategy - Rule: Must be a <p> tag"
+    description: "Verifies that a non-<p> tag (e.g., a div), even with a foreign lang attribute, is ignored."
+    context:
+      primary_language: "en"
+    input:
+      html: '<div lang="fr">Ce conteneur div ne doit pas être converti.</div>'
+    expected:
+      html: '<div lang="fr">Ce conteneur div ne doit pas être converti.</div>'
+      telemetry:
+        foreign_blocks_identified_count: 0
+
+  - id: IGNORE_ALREADY_IN_BLOCKQUOTE
+    target: "ForeignBlockStrategy - Rule: Must not be inside a <blockquote>"
+    description: "Verifies a foreign paragraph inside an existing blockquote is ignored to prevent nested blockquotes."
+    context:
+      primary_language: "en"
+    input:
+      html: '<blockquote><p lang="fr">Ce paragraphe est déjà dans une citation et doit être ignoré.</p></blockquote>'
+    expected:
+      html: '<blockquote><p lang="fr">Ce paragraphe est déjà dans une citation et doit être ignoré.</p></blockquote>'
+      telemetry:
+        foreign_blocks_identified_count: 0
+
+  - id: IGNORE_NO_LANG_ATTRIBUTE
+    target: "ForeignBlockStrategy - Rule: Language Mismatch (No lang)"
+    description: "Verifies a paragraph without a 'lang' attribute is ignored."
+    context:
+      primary_language: "en"
+    input:
+      html: "<p>This paragraph has no language attribute and should be ignored.</p>"
+    expected:
+      html: "<p>This paragraph has no language attribute and should be ignored.</p>"
+      telemetry:
+        foreign_blocks_identified_count: 0
+
+  - id: IGNORE_SAME_LANG_ATTRIBUTE
+    target: "ForeignBlockStrategy - Rule: Language Mismatch (Same lang)"
+    description: "Verifies a paragraph with a 'lang' attribute matching the document's primary language is ignored."
+    context:
+      primary_language: "en"
+    input:
+      html: '<p lang="en">This paragraph is in the primary language and should be ignored.</p>'
+    expected:
+      html: '<p lang="en">This paragraph is in the primary language and should be ignored.</p>'
+      telemetry:
+        foreign_blocks_identified_count: 0
+
+  - id: ACCEPT_MIN_LENGTH_ON_BOUNDARY
+    target: "ForeignBlockStrategy - Rule: Minimum Length (>=25)"
+    description: "Verifies a foreign paragraph with exactly 25 characters is converted."
+    context:
+      primary_language: "en"
+    input:
+      html: '<p lang="fr">aaaaaaaaaaaaaaaaaaaaaaaaa</p>'
+    expected:
+      html: '<blockquote class="foreign-block" lang="fr"><p>aaaaaaaaaaaaaaaaaaaaaaaaa</p></blockquote>'
+      telemetry:
+        foreign_blocks_identified_count: 1
+
+  - id: IGNORE_MIN_LENGTH_OFF_BOUNDARY
+    target: "ForeignBlockStrategy - Rule: Minimum Length (<25)"
+    description: "Verifies a foreign paragraph with fewer than 25 characters is ignored."
+    context:
+      primary_language: "en"
+    input:
+      html: '<p lang="fr">aaaaaaaaaaaaaaaaaaaaaaaa</p>'
+    expected:
+      html: '<p lang="fr">aaaaaaaaaaaaaaaaaaaaaaaa</p>'
+      telemetry:
+        foreign_blocks_identified_count: 0
+
+  - id: IGNORE_LOW_TTR_CANDIDATE
+    target: "ForeignBlockStrategy._is_candidate_valid - TTR filter"
+    description: "Verifies a foreign language candidate is rejected if it has a low Text-to-Tag Ratio (e.g., a TOC entry)."
+    context:
+      primary_language: "en"
+    input:
+      html: '<p lang="fr"><a>1.</a> <a>Titre du chapitre</a></p>'
+    expected:
+      html: '<p lang="fr"><a>1.</a> <a>Titre du chapitre</a></p>'
+      telemetry:
+        foreign_blocks_identified_count: 0
+
+  - id: IGNORE_HIGH_ANCHOR_DENSITY
+    target: "ForeignBlockStrategy._is_candidate_valid - Anchor density filter"
+    description: "Verifies a foreign language candidate is rejected if its anchor text density is over 30%."
+    context:
+      primary_language: "en"
+    input:
+      html: '<p lang="fr">Ceci est une phrase avec <a>beaucoup trop de texte de lien</a> par rapport au reste.</p>'
+    expected:
+      html: '<p lang="fr">Ceci est une phrase avec <a>beaucoup trop de texte de lien</a> par rapport au reste.</p>'
+      telemetry:
+        foreign_blocks_identified_count: 0

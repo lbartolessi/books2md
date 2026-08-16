@@ -1,0 +1,99 @@
+# File: tests/specs/dom_normalizer/accessibility_normalizer.yaml
+package: accessibility_normalizer
+dependencies: ["core"]
+pipeline_position: 2
+test_cases:
+  - id: "INITIAL_STATE"
+    target: "__init__"
+    description: "Verifies that telemetry counters are initialized to zero/false."
+    input:
+      html: "<body><p>Initial state check.</p></body>"
+    expected:
+      html: "<body><p>Initial state check.</p></body>"
+      telemetry:
+        page_breaks_anchored: 0
+        bibliography_found: false
+        glossary_found: false
+
+  - id: "LIFECYCLE_ISOLATION"
+    target: "Instance Lifecycle"
+    description: "Verifies instance is scoped to a single book (conceptual test)."
+    input:
+      html: "<body><p>This test conceptually verifies instance isolation.</p></body>"
+    expected:
+      html: "<body><p>This test conceptually verifies instance isolation.</p></body>"
+      telemetry:
+        page_breaks_anchored: 0
+        bibliography_found: false
+        glossary_found: false
+
+  - id: "PROCESS_EXECUTION_ORDER"
+    target: "process (Execution Order)"
+    description: "Verifies the strict execution order of internal methods."
+    input:
+      html: '<body><p id="p1" role="doc-pagebreak"></p><section role="doc-bibliography"></section><section role="doc-glossary"></section></body>'
+    expected:
+      html: '<body><!-- page-break: p1 --><section class="appendix-block bibliography" data-chunk-strategy="no_split" role="doc-bibliography"></section><section class="appendix-block glossary" data-chunk-strategy="no_split" role="doc-glossary"></section></body>'
+      telemetry:
+        page_breaks_anchored: 1
+        bibliography_found: true
+        glossary_found: true
+
+  - id: "IMMUNITY_PROTOCOL_PER_NODE"
+    target: "Immunity Protocol"
+    description: "Verifies the code block shield is applied on a per-node basis."
+    input:
+      html: '<body><p id="p1" role="doc-pagebreak"></p><code><section role="doc-bibliography"></section></code></body>'
+    expected:
+      html: '<body><!-- page-break: p1 --><code><section role="doc-bibliography"></section></code></body>'
+      telemetry:
+        page_breaks_anchored: 1
+        bibliography_found: false
+
+  - id: "PAGEBREAK_REPLACEMENT"
+    target: "_anchor_page_breaks (Mutation)"
+    description: "Verifies a doc-pagebreak tag is replaced with a Comment object."
+    input:
+      html: '<body><p id="p123" role="doc-pagebreak">Page 123</p></body>'
+    expected:
+      html: "<body><!-- page-break: p123 --></body>"
+      telemetry:
+        page_breaks_anchored: 1
+
+  - id: "PAGEBREAK_TARGET_ATTRIBUTE"
+    target: "_anchor_page_breaks (Target Attribute)"
+    description: "Verifies elements with role 'doc-pagebreak' are found (even with other roles)."
+    input:
+      html: '<body><p id="p124" role="other doc-pagebreak">Page 124</p></body>'
+    expected:
+      html: "<body><!-- page-break: p124 --></body>"
+      telemetry:
+        page_breaks_anchored: 1
+
+  - id: "PAGEBREAK_ID_SOURCE"
+    target: "_anchor_page_breaks (Page ID Source)"
+    description: "Verifies page ID is retrieved from 'id', falling back to 'title', then 'unknown'."
+    input:
+      html: '<body><p id="p1" role="doc-pagebreak"></p><p title="p2" role="doc-pagebreak"></p><p role="doc-pagebreak"></p></body>'
+    expected:
+      html: "<body><!-- page-break: p1 --><!-- page-break: p2 --><!-- page-break: unknown --></body>"
+      telemetry:
+        page_breaks_anchored: 3
+
+  - id: "PAGEBREAK_COMMENT_FORMAT"
+    target: "_anchor_page_breaks (Comment Format)"
+    description: "Verifies the generated comment format is ' page-break: {id} '."
+    input:
+      html: '<body><p id="test-id" role="doc-pagebreak"></p></body>'
+    expected:
+      html: "<body><!-- page-break: test-id --></body>"
+
+  - id: "LANDMARK_WRAP_PROCESS"
+    target: "_process_single_landmark_node (Mutation)"
+    description: "Verifies a landmark node is mutated with correct classes and attributes."
+    input:
+      html: '<body><section role="doc-bibliography">Content</section></body>'
+    expected:
+      html: '<body><section class="appendix-block bibliography" data-chunk-strategy="no_split" role="doc-bibliography">Content</section></body>'
+      telemetry:
+        bibliography_found: true

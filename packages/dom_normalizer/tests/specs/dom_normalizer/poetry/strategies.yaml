@@ -1,0 +1,112 @@
+# File: tests/specs/dom_normalizer/poetry/strategies.yaml
+package: poetry
+dependencies: ["core"]
+pipeline_position: 5
+test_cases:
+  # --- HeuristicTableStrategy Tests ---
+  - id: TABLE_STRATEGY_MATCH_BOUNDARY_ROWS
+    target: "HeuristicTableStrategy.can_process - row boundary"
+    description: "Verifies a table with the minimum number of rows (1) is processed."
+    input:
+      html: "<blockquote><table><tbody><tr><td>Line 1</td><td>Line 2</td></tr></tbody></table></blockquote>"
+    expected:
+      html: '<blockquote><div class="poetry-block">Line 1<br/>Line 2</div></blockquote>'
+      telemetry:
+        detected_poems_count: 1
+
+  - id: TABLE_STRATEGY_REJECT_COLUMNS
+    target: "HeuristicTableStrategy.can_process - column boundary"
+    description: "Verifies a table with more than the maximum allowed columns (3 > 2) is rejected."
+    input:
+      html: "<blockquote><table><tbody><tr><td>Cell 1</td><td>Cell 2</td><td>Cell 3</td></tr></tbody></table></blockquote>"
+    expected:
+      html: "<blockquote><table><tbody><tr><td>Cell 1</td><td>Cell 2</td><td>Cell 3</td></tr></tbody></table></blockquote>"
+      telemetry:
+        detected_poems_count: 0
+        geometric_rejections: 1
+
+  - id: TABLE_STRATEGY_REJECT_HEADER
+    target: "HeuristicTableStrategy.can_process - header rejection"
+    description: "Verifies a table containing a <th> header is rejected."
+    input:
+      html: "<blockquote><table><tbody><tr><th>Header</th></tr><tr><td>Data</td></tr></tbody></table></blockquote>"
+    expected:
+      html: "<blockquote><table><tbody><tr><th>Header</th></tr><tr><td>Data</td></tr></tbody></table></blockquote>"
+      telemetry:
+        detected_poems_count: 0
+        geometric_rejections: 1
+
+  # --- HeuristicSeparatorStrategy Tests ---
+  - id: SEPARATOR_STRATEGY_REJECT_NO_BR
+    target: "HeuristicSeparatorStrategy.can_process - no <br> guard"
+    description: "Verifies a block without <br> tags is ignored by the separator strategy."
+    input:
+      html: "<blockquote><div><p>A paragraph without line breaks.</p></div></blockquote>"
+    expected:
+      html: "<blockquote><div><p>A paragraph without line breaks.</p></div></blockquote>"
+      telemetry:
+        detected_poems_count: 0
+
+  - id: SEPARATOR_STRATEGY_REJECT_DIALOGUE
+    target: "HeuristicSeparatorStrategy.can_process - dialogue guard"
+    description: "Verifies a separator-based block is rejected by the Dialogue Exclusion Guard."
+    input:
+      html: "<blockquote><div>SPEAKER:<br/>This line is part of a dialogue.<br/>—So is this one.</div></blockquote>"
+    expected:
+      html: "<blockquote><div>SPEAKER:<br/>This line is part of a dialogue.<br/>—So is this one.</div></blockquote>"
+      telemetry:
+        dialogue_blocks_excluded: 1
+        detected_poems_count: 0
+
+  - id: SEPARATOR_STRATEGY_MATCH_DENSITY
+    target: "HeuristicSeparatorStrategy.can_process - density match"
+    description: "Verifies a separator-based block with short lines (low density) is matched."
+    input:
+      html: "<blockquote><div>Short line<br/>Another one<br/>A third line</div></blockquote>"
+    expected:
+      html: '<blockquote><div class="poetry-block">Short line<br/>Another one<br/>A third line</div></blockquote>'
+      telemetry:
+        detected_poems_count: 1
+
+  - id: SEPARATOR_STRATEGY_MATCH_ENJAMBMENT
+    target: "HeuristicSeparatorStrategy.can_process - enjambment match"
+    description: "Verifies a separator-based block with high enjambment (no terminal punctuation) is matched."
+    input:
+      html: "<blockquote><div>This is a very long line with no punctuation<br/>And this is another one also with no punctuation<br/>The lack of periods or commas triggers the enjambment rule</div></blockquote>"
+    expected:
+      html: '<blockquote><div class="poetry-block">This is a very long line with no punctuation<br/>And this is another one also with no punctuation<br/>The lack of periods or commas triggers the enjambment rule</div></blockquote>'
+      telemetry:
+        detected_poems_count: 1
+
+  # --- HeuristicParagraphContainerStrategy Tests ---
+  - id: PARAGRAPH_STRATEGY_MATCH
+    target: "HeuristicParagraphContainerStrategy.can_process - match"
+    description: "Verifies a container with multiple short paragraphs is matched."
+    input:
+      html: "<blockquote><div><p>A short line.</p><p>Another short line.</p><p>A final short line.</p></div></blockquote>"
+    expected:
+      html: '<blockquote><div class="poetry-block">A short line.<br/>Another short line.<br/>A final short line.</div></blockquote>'
+      telemetry:
+        detected_poems_count: 1
+
+  - id: PARAGRAPH_STRATEGY_REJECT_LENGTH
+    target: "HeuristicParagraphContainerStrategy.can_process - length rejection"
+    description: "Verifies a container with long, prose-like paragraphs is rejected."
+    input:
+      html: "<blockquote><div><p>This is a very long paragraph of prose that should not be considered poetry by any of the heuristics because its length and structure are not poetic.</p><p>This is another long paragraph that continues the prose, making it very unlikely to be a poem.</p></div></blockquote>"
+    expected:
+      html: "<blockquote><div><p>This is a very long paragraph of prose that should not be considered poetry by any of the heuristics because its length and structure are not poetic.</p><p>This is another long paragraph that continues the prose, making it very unlikely to be a poem.</p></div></blockquote>"
+      telemetry:
+        detected_poems_count: 0
+        geometric_rejections: 1
+
+  - id: PARAGRAPH_STRATEGY_REJECT_DIALOGUE
+    target: "HeuristicParagraphContainerStrategy.can_process - dialogue guard"
+    description: "Verifies a paragraph-based container is rejected by the Dialogue Exclusion Guard."
+    input:
+      html: "<blockquote><div><p>SPEAKER: This is dialogue.</p><p>—So is this.</p></div></blockquote>"
+    expected:
+      html: "<blockquote><div><p>SPEAKER: This is dialogue.</p><p>—So is this.</p></div></blockquote>"
+      telemetry:
+        detected_poems_count: 0
+        dialogue_blocks_excluded: 1

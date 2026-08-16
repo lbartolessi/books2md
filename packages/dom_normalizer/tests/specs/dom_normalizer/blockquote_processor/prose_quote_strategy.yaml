@@ -1,0 +1,164 @@
+# File: tests/specs/dom_normalizer/blockquote_processor/prose_quote_strategy.yaml
+package: blockquote_processor
+dependencies: ["core"]
+pipeline_position: 4
+test_cases:
+  - id: BASIC_PROSE_CONVERSION
+    target: "ProseQuoteStrategy.find_and_apply - Mutation"
+    description: "Verifies a single paragraph with sufficient left margin is wrapped in a blockquote and its style is stripped."
+    input:
+      html: '<p style="margin-left: 2em;">This is a prose quote.</p>'
+    expected:
+      html: "<blockquote><p>This is a prose quote.</p></blockquote>"
+      telemetry:
+        generic_quotes_created_count: 1
+
+  - id: SEQUENCE_PROSE_CONVERSION
+    target: "ProseQuoteStrategy.find_and_apply - Mutation (Sequence)"
+    description: "Verifies a sequence of paragraphs with compatible left margins are wrapped in a single blockquote."
+    input:
+      html: '<p style="margin-left: 2em;">First line.</p><p style="margin-left: 2.1em;">Second line.</p>'
+    expected:
+      html: "<blockquote><p>First line.</p><p>Second line.</p></blockquote>"
+      telemetry:
+        generic_quotes_created_count: 1
+
+  - id: ACCEPT_MIN_INDENT_EM_ON_BOUNDARY
+    target: "ProseQuoteStrategy - Rule: Minimum Indent (>=1.5em)"
+    description: "Verifies a paragraph with exactly 1.5em margin-left is converted."
+    input:
+      html: '<p style="margin-left: 1.5em;">This should be converted.</p>'
+    expected:
+      html: "<blockquote><p>This should be converted.</p></blockquote>"
+      telemetry:
+        generic_quotes_created_count: 1
+
+  - id: IGNORE_MIN_INDENT_EM_OFF_BOUNDARY
+    target: "ProseQuoteStrategy - Rule: Minimum Indent (<1.5em)"
+    description: "Verifies a paragraph with less than 1.5em margin-left is ignored."
+    input:
+      html: '<p style="margin-left: 1.4em;">This should be ignored.</p>'
+    expected:
+      html: '<p style="margin-left: 1.4em;">This should be ignored.</p>'
+      telemetry:
+        generic_quotes_created_count: 0
+
+  - id: ACCEPT_MIN_INDENT_PX_ON_BOUNDARY
+    target: "ProseQuoteStrategy - Rule: Minimum Indent (>=20px)"
+    description: "Verifies a paragraph with exactly 20px padding-left is converted."
+    input:
+      html: '<p style="padding-left: 20px;">This should be converted.</p>'
+    expected:
+      html: "<blockquote><p>This should be converted.</p></blockquote>"
+      telemetry:
+        generic_quotes_created_count: 1
+
+  - id: IGNORE_MIN_INDENT_PX_OFF_BOUNDARY
+    target: "ProseQuoteStrategy - Rule: Minimum Indent (<20px)"
+    description: "Verifies a paragraph with less than 20px padding-left is ignored."
+    input:
+      html: '<p style="padding-left: 19px;">This should be ignored.</p>'
+    expected:
+      html: '<p style="padding-left: 19px;">This should be ignored.</p>'
+      telemetry:
+        generic_quotes_created_count: 0
+
+  - id: BREAK_SEQUENCE_ON_INCOMPATIBLE_INDENT
+    target: "ProseQuoteStrategy - Rule: Homogeneous Indentation"
+    description: "Verifies a sequence is broken when a sibling paragraph has an incompatible indent."
+    input:
+      html: '<p style="margin-left: 2em;">First line.</p><p style="margin-left: 2.1em;">Second line.</p><p>Third line, no indent.</p>'
+    expected:
+      html: "<blockquote><p>First line.</p><p>Second line.</p></blockquote><p>Third line, no indent.</p>"
+      telemetry:
+        generic_quotes_created_count: 1
+
+  - id: IGNORE_LOW_TTR_CANDIDATE
+    target: "ProseQuoteStrategy._is_candidate_valid - TTR filter"
+    description: "Verifies an indented candidate is rejected if it has a low Text-to-Tag Ratio (e.g., a TOC entry)."
+    input:
+      html: '<p style="margin-left: 2em;"><a>1.</a> <a>Chapter Title</a></p>'
+    expected:
+      html: '<p style="margin-left: 2em;"><a>1.</a> <a>Chapter Title</a></p>'
+      telemetry:
+        generic_quotes_created_count: 0
+
+  - id: IGNORE_HIGH_ANCHOR_DENSITY
+    target: "ProseQuoteStrategy._is_candidate_valid - Anchor density filter"
+    description: "Verifies an indented candidate is rejected if its anchor text density is over 30%."
+    input:
+      html: '<p style="margin-left: 2em;">This is a sentence with <a>way too much link text</a> compared to the rest.</p>'
+    expected:
+      html: '<p style="margin-left: 2em;">This is a sentence with <a>way too much link text</a> compared to the rest.</p>'
+      telemetry:
+        generic_quotes_created_count: 0
+
+  - id: PARSE_LAST_DECLARATION_WINS
+    target: "ProseQuoteStrategy._parse_indent_style - Rule: Last declaration wins"
+    description: "Verifies that the last indent property is used for evaluation and that other inline styles are preserved after stripping."
+    input:
+      html: '<p style="margin-left: 0.5em; color: red; margin-left: 2em;">Text</p>'
+    expected:
+      html: "<blockquote><p>Text</p></blockquote>"
+      telemetry:
+        generic_quotes_created_count: 1
+
+  - id: PARSE_IGNORE_NEGATIVE_INDENT
+    target: "ProseQuoteStrategy._parse_indent_style - Rule: Ignore non-positive indents"
+    description: "Verifies that a negative margin-left is ignored and not converted."
+    input:
+      html: '<p style="margin-left: -2em;">Text</p>'
+    expected:
+      html: '<p style="margin-left: -2em;">Text</p>'
+      telemetry:
+        generic_quotes_created_count: 0
+
+  - id: PARSE_ACCEPT_PADDING_LEFT
+    target: "ProseQuoteStrategy._parse_indent_style - Rule: Accept padding-left"
+    description: "Verifies that padding-left is treated as a valid indentation property."
+    input:
+      html: '<p style="padding-left: 2em;">Text</p>'
+    expected:
+      html: "<blockquote><p>Text</p></blockquote>"
+      telemetry:
+        generic_quotes_created_count: 1
+
+  - id: ACCEPT_MIN_INDENT_PT_ON_BOUNDARY
+    target: "ProseQuoteStrategy._get_valid_indent_tuple - Rule: Minimum Indent (>=6.0pt)"
+    description: "Verifies a paragraph with exactly 6.0pt margin-left is converted."
+    input:
+      html: '<p style="margin-left: 6.0pt;">Text</p>'
+    expected:
+      html: "<blockquote><p>Text</p></blockquote>"
+      telemetry:
+        generic_quotes_created_count: 1
+
+  - id: COMPATIBLE_SEQUENCE_DIFFERENT_UNITS_WITHIN_TOLERANCE
+    target: "ProseQuoteStrategy._are_indents_compatible - Rule: Convertible units"
+    description: "Verifies a sequence with different but convertible units (em vs px) is processed if the absolute difference is within tolerance."
+    input:
+      html: '<p style="margin-left: 2em;">First line.</p><p style="margin-left: 35px;">Second line.</p>'
+    expected:
+      html: "<blockquote><p>First line.</p><p>Second line.</p></blockquote>"
+      telemetry:
+        generic_quotes_created_count: 1
+
+  - id: SEQUENCE_WITH_DIFFERENT_UNITS_OUTSIDE_TOLERANCE
+    target: "ProseQuoteStrategy._collect_sequence - Rule: Any valid indent continues sequence"
+    description: "Verifies a sequence continues even if convertible units are outside the old tolerance, as long as both are valid indents."
+    input:
+      html: '<p style="margin-left: 2em;">First line.</p><p style="margin-left: 37px;">Second line.</p>'
+    expected:
+      html: "<blockquote><p>First line.</p><p>Second line.</p></blockquote>"
+      telemetry:
+        generic_quotes_created_count: 1
+
+  - id: SEQUENCE_WITH_NON_CONVERTIBLE_UNITS
+    target: "ProseQuoteStrategy._collect_sequence - Rule: Any valid indent continues sequence"
+    description: "Verifies a sequence continues even if units are not convertible (e.g., px vs %), as long as both are valid indents."
+    input:
+      html: '<p style="margin-left: 32px;">First line.</p><p style="margin-left: 6%;">Second line.</p>'
+    expected:
+      html: "<blockquote><p>First line.</p><p>Second line.</p></blockquote>"
+      telemetry:
+        generic_quotes_created_count: 1

@@ -1,0 +1,36 @@
+# File: tests/specs/dom_normalizer/footnotes/strategies/native_convention_footnote_strategy.yaml
+package: footnotes
+dependencies: ["core"]
+# pipeline_position is not applicable for a single strategy test.
+test_cases:
+  - id: BACKLINK_INJECTION
+    target: "NativeConventionFootnoteStrategy.process - Backlink Injection"
+    description: "Verifies a backlink is correctly synthesized and injected into a note body that lacks one."
+    input:
+      html: '<body><p>Text with a <a type="note" href="#n1">note</a>.</p><section><p id="n1">Note content.</p></section></body>'
+    expected:
+      html: '<body><p>Text with a <a type="note" href="#n1" id="fnref-n1-1">note</a>.</p><section><p id="n1">Note content. <a role="doc-backlink" href="#fnref-n1-1" class="footnote-backref">↩</a></p></section></body>'
+
+  - id: IDEMPOTENCY_CHECK
+    target: "NativeConventionFootnoteStrategy.process - Idempotency"
+    description: "Verifies the strategy does not add a duplicate backlink if one already exists."
+    input:
+      html: '<body><p>Text with a <a type="note" href="#n1" id="fnref-n1-1">note</a>.</p><section><p id="n1">Note content. <a role="doc-backlink" href="#fnref-n1-1">↩</a></p></section></body>'
+    expected:
+      html: '<body><p>Text with a <a type="note" href="#n1" id="fnref-n1-1">note</a>.</p><section><p id="n1">Note content. <a role="doc-backlink" href="#fnref-n1-1" class="footnote-backref">↩</a></p></section></body>'
+
+  - id: DANGLING_REF_HANDLING
+    target: "NativeConventionFootnoteStrategy.process - Broken Link Handling"
+    description: "Verifies a callout pointing to a non-existent note is skipped without causing an error."
+    input:
+      html: '<body><p>Text with a <a type="note" href="#nonexistent">dangling callout</a>.</p></body>'
+    expected:
+      html: '<body><p>Text with a <a type="note" href="#nonexistent">dangling callout</a>.</p></body>'
+
+  - id: IDLE_RUN_NO_MARKERS
+    target: "NativeConventionFootnoteStrategy.can_process"
+    description: "Verifies the strategy remains idle when no <a type='note'> markers are present."
+    input:
+      html: "<body><p>A clean paragraph with no native footnotes.</p></body>"
+    expected:
+      html: "<body><p>A clean paragraph with no native footnotes.</p></body>"

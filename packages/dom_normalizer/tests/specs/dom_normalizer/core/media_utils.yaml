@@ -1,0 +1,36 @@
+# File: tests/specs/dom_normalizer/core/media_utils.yaml
+package: core
+dependencies: []
+# pipeline_position is not applicable for a utility module.
+test_cases:
+  - id: IS_DECORATIVE_IMAGE_CONCEPTUAL
+    target: "media_utils.is_decorative_image"
+    description: "Conceptual test for the non-mutating function `is_decorative_image`. Verifies no DOM change occurs."
+    input:
+      html: '<img src="spacer.gif" alt=""/>'
+    expected:
+      html: '<img src="spacer.gif" alt=""/>'
+
+  - id: GET_IMAGE_SOURCE_CONCEPTUAL
+    target: "media_utils.get_image_source"
+    description: "Conceptual test for the non-mutating function `get_image_source`. Verifies no DOM change occurs."
+    input:
+      html: '<picture><source srcset="image.webp" type="image/webp"/><img src="image.jpg"/></picture>'
+    expected:
+      html: '<picture><source srcset="image.webp" type="image/webp"/><img src="image.jpg"/></picture>'
+
+  - id: CALCULATE_ASPECT_RATIO_CONCEPTUAL
+    target: "media_utils.calculate_aspect_ratio"
+    description: "Conceptual test for the non-mutating function `calculate_aspect_ratio`. Verifies no DOM change occurs."
+    input:
+      html: '<img src="photo.jpg" width="800" height="600"/>'
+    expected:
+      html: '<img src="photo.jpg" width="800" height="600"/>'
+
+  - id: GENERATE_MEDIA_HASH_CONCEPTUAL
+    target: "media_utils.generate_media_hash"
+    description: "Conceptual test for the non-mutating function `generate_media_hash`. Verifies no DOM change occurs."
+    input:
+      html: '<video src="movie.mp4"></video>'
+    expected:
+      html: '<video src="movie.mp4"></video>'

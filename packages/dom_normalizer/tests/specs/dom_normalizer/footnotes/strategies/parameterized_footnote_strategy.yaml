@@ -1,0 +1,46 @@
+# File: tests/specs/dom_normalizer/footnotes/strategies/parameterized_footnote_strategy.yaml
+package: footnotes
+dependencies: ["core"]
+# pipeline_position is not applicable for a single strategy test.
+test_cases:
+  - id: BASIC_PATTERN_CONVERSION
+    target: "ParameterizedFootnoteStrategy.process - Basic Pattern"
+    description: "Verifies a simple footnote pattern is correctly normalized using configured selectors."
+    strategy_config:
+      pattern_id: "test_pattern_1"
+      forensic_signature:
+        callout_selector: "a.callout"
+        body_selector: "div.note-body"
+        body_topology_location: "end_of_section"
+    input:
+      html: '<body><p>Text with a <a class="callout" href="#note1">note</a>.</p><div class="note-body" id="note1"><p>Note content.</p></div></body>'
+    expected:
+      html: '<body><p>Text with a <a href="#fn-1" id="fnref-1" role="doc-noteref">note</a>.</p><section role="doc-endnotes"><ol><li id="fn-1" role="doc-endnote"><p>Note content. <a class="footnote-backref" href="#fnref-1" role="doc-backlink">↩</a></p></li></ol></section></body>'
+
+  - id: ORPHAN_NOTE_HANDLING
+    target: "ParameterizedFootnoteStrategy.process - Orphan Note"
+    description: "Verifies an unreferenced note body is correctly identified as an orphan and removed."
+    strategy_config:
+      pattern_id: "test_pattern_2"
+      forensic_signature:
+        callout_selector: "a.callout"
+        body_selector: "div.note-body"
+        body_topology_location: "end_of_section"
+    input:
+      html: '<body><p>Text without a callout.</p><div class="note-body" id="note1"><p>This note should be removed.</p></div></body>'
+    expected:
+      html: "<body><p>Text without a callout.</p></body>"
+
+  - id: IDLE_RUN_NO_BODIES
+    target: "ParameterizedFootnoteStrategy.can_process"
+    description: "Verifies the strategy remains idle when no elements match the body_selector."
+    strategy_config:
+      pattern_id: "test_pattern_3"
+      forensic_signature:
+        callout_selector: "a.callout"
+        body_selector: "div.non-existent-body-class"
+        body_topology_location: "end_of_section"
+    input:
+      html: '<body><p>Text with a <a class="callout" href="#note1">note</a>.</p></body>'
+    expected:
+      html: '<body><p>Text with a <a class="callout" href="#note1">note</a>.</p></body>'

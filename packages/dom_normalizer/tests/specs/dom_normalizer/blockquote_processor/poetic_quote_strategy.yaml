@@ -1,0 +1,104 @@
+# File: tests/specs/dom_normalizer/blockquote_processor/poetic_quote_strategy.yaml
+package: blockquote_processor
+dependencies: ["core"]
+pipeline_position: 4
+test_cases:
+  - id: BASIC_POETIC_CONVERSION
+    target: "PoeticQuoteStrategy.find_and_apply - Mutation"
+    description: "Verifies a sequence of short, consistently-lengthed paragraphs is converted into a blockquote."
+    input:
+      html: "<p>This is the first line.</p><p>This is the second line.</p><p>This is the third line.</p>"
+    expected:
+      html: "<blockquote><p>This is the first line.</p><p>This is the second line.</p><p>This is the third line.</p></blockquote>"
+      telemetry:
+        generic_quotes_created_count: 1
+
+  - id: IGNORE_NON_P_TAGS
+    target: "PoeticQuoteStrategy - Rule: Structural Coexistence Invariant"
+    description: "Verifies the strategy operates exclusively on <p> tags and ignores other tags like <div>."
+    input:
+      html: "<div>This is the first line.</div><div>This is the second line.</div>"
+    expected:
+      html: "<div>This is the first line.</div><div>This is the second line.</div>"
+      telemetry:
+        generic_quotes_created_count: 0
+
+  - id: ACCEPT_MIN_LINES_ON_BOUNDARY
+    target: "PoeticQuoteStrategy - Rule: Minimum Line Count (>=2)"
+    description: "Verifies a sequence of exactly 2 valid paragraphs is converted."
+    input:
+      html: "<p>Line one.</p><p>Line two.</p>"
+    expected:
+      html: "<blockquote><p>Line one.</p><p>Line two.</p></blockquote>"
+      telemetry:
+        generic_quotes_created_count: 1
+
+  - id: IGNORE_MIN_LINES_OFF_BOUNDARY
+    target: "PoeticQuoteStrategy - Rule: Minimum Line Count (<2)"
+    description: "Verifies a single paragraph, even if short, is not converted."
+    input:
+      html: "<p>A single short line.</p>"
+    expected:
+      html: "<p>A single short line.</p>"
+      telemetry:
+        generic_quotes_created_count: 0
+
+  - id: ACCEPT_MEAN_LENGTH_ON_BOUNDARY
+    target: "PoeticQuoteStrategy - Rule: Mean Length (<=55)"
+    description: "Verifies a sequence with a mean character length of exactly 55 is converted."
+    input:
+      html: "<p>This line is exactly fifty-five characters long, yes.</p><p>This line is exactly fifty-five characters long, yes.</p>"
+    expected:
+      html: "<blockquote><p>This line is exactly fifty-five characters long, yes.</p><p>This line is exactly fifty-five characters long, yes.</p></blockquote>"
+      telemetry:
+        generic_quotes_created_count: 1
+
+  - id: IGNORE_MEAN_LENGTH_OFF_BOUNDARY
+    target: "PoeticQuoteStrategy - Rule: Mean Length (>55)"
+    description: "Verifies a sequence with a mean character length greater than 55 is ignored."
+    input:
+      html: "<p>This line is exactly fifty-six characters long, oh yes!.</p><p>This line is exactly fifty-six characters long, oh yes!.</p>"
+    expected:
+      html: "<p>This line is exactly fifty-six characters long, oh yes!.</p><p>This line is exactly fifty-six characters long, oh yes!.</p>"
+      telemetry:
+        generic_quotes_created_count: 0
+
+  - id: ACCEPT_VARIANCE_ON_BOUNDARY
+    target: "PoeticQuoteStrategy - Rule: Variance (<=225.0)"
+    description: "Verifies a sequence with a line length variance of exactly 225.0 is converted."
+    input:
+      html: "<p>aaaaaaaaaa</p><p>bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb</p>"
+    expected:
+      html: "<blockquote><p>aaaaaaaaaa</p><p>bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb</p></blockquote>"
+      telemetry:
+        generic_quotes_created_count: 1
+
+  - id: IGNORE_VARIANCE_OFF_BOUNDARY
+    target: "PoeticQuoteStrategy - Rule: Variance (>225.0)"
+    description: "Verifies a sequence with a line length variance greater than 225.0 is ignored."
+    input:
+      html: "<p>aaaaaaaaaa</p><p>bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb</p>"
+    expected:
+      html: "<p>aaaaaaaaaa</p><p>bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb</p>"
+      telemetry:
+        generic_quotes_created_count: 0
+
+  - id: IGNORE_LOW_TTR_CANDIDATE
+    target: "PoeticQuoteStrategy._is_candidate_valid - TTR filter"
+    description: "Verifies a poetic-looking candidate is rejected if it has a low Text-to-Tag Ratio (e.g., a TOC entry)."
+    input:
+      html: "<p><a>1.</a></p><p><a>Chapter One</a></p>"
+    expected:
+      html: "<p><a>1.</a></p><p><a>Chapter One</a></p>"
+      telemetry:
+        generic_quotes_created_count: 0
+
+  - id: IGNORE_HIGH_ANCHOR_DENSITY
+    target: "PoeticQuoteStrategy._is_candidate_valid - Anchor density filter"
+    description: "Verifies a poetic-looking candidate is rejected if its anchor text density is over 30%."
+    input:
+      html: "<p>A short line.</p><p><a>A linked line.</a></p>"
+    expected:
+      html: "<p>A short line.</p><p><a>A linked line.</a></p>"
+      telemetry:
+        generic_quotes_created_count: 0

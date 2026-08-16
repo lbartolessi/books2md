@@ -1,0 +1,170 @@
+# File: tests/specs/dom_normalizer/math_processor.yaml
+package: math_processor
+dependencies: ["core"]
+pipeline_position: 2
+test_cases:
+  - id: INIT_NO_OP_TELEMETRY
+    target: "__init__ telemetry initialization"
+    description: "Tests that telemetry counters are initialized to 0 on a document with no math content."
+    input:
+      html: "<html><body><p>Just some text.</p></body></html>"
+    expected:
+      html: "<html><body><p>Just some text.</p></body></html>"
+      telemetry:
+        equations_converted: 0
+        hybrid_blocks_created: 0
+
+  - id: LXML_UNAVAILABLE_BYPASS
+    target: "lxml dependency rule"
+    description: "Tests that if lxml is unavailable, <math> tags are bypassed without mutation or error."
+    input:
+      html: "<html><body><math><mi>E</mi><mo>=</mo><mi>m</mi><msup><mi>c</mi><mn>2</mn></msup></math></body></html>"
+    expected:
+      html: '<html><body><span class="math-inline">$E=mc2$</span></body></html>'
+      telemetry:
+        equations_converted: 1
+
+  - id: EXTRACT_ATTRIBUTE_PRIORITY
+    target: "_extract_latex_from_attributes attribute priority rule"
+    description: "Tests that LaTeX is extracted strictly in the order: data-latex, data-math, alt, title."
+    input:
+      html: '<html><body><p><img src="eq.png" data-latex="a^2" data-math="b^2" alt="c^2" title="d^2"/></p></body></html>'
+    expected:
+      html: '<html><body><div class="math-block"><img src="eq.png" data-latex="a^2" data-math="b^2" alt="c^2" title="d^2"/>$$a^2$$</div></body></html>'
+      telemetry:
+        hybrid_blocks_created: 1
+
+  - id: EXTRACT_ALT_VALIDATION_PASS
+    target: "_extract_latex_from_attributes alt/title validation rule"
+    description: "Tests that an 'alt' attribute is used if it contains a valid LaTeX token."
+    input:
+      html: '<html><body><p><img src="eq.png" alt="\frac{1}{2}"/></p></body></html>'
+    expected:
+      html: '<html><body><div class="math-block"><img src="eq.png" alt="\frac{1}{2}"/>$$\frac{1}{2}$$</div></body></html>'
+      telemetry:
+        hybrid_blocks_created: 1
+
+  - id: EXTRACT_ALT_VALIDATION_FAIL
+    target: "_extract_latex_from_attributes alt/title validation rule"
+    description: "Tests that an 'alt' attribute is ignored if it does not contain a valid LaTeX token."
+    input:
+      html: '<html><body><p><img src="eq.png" alt="An equation image"/></p></body></html>'
+    expected:
+      html: '<html><body><p><img src="eq.png" alt="An equation image"/></p></body></html>'
+      telemetry:
+        hybrid_blocks_created: 0
+
+  - id: EXTRACT_MIN_LENGTH_FAIL
+    target: "_extract_latex_from_attributes minimum length rule"
+    description: "Tests that LaTeX content shorter than MIN_LATEX_LENGTH (3) is ignored."
+    input:
+      html: '<html><body><p><img src="eq.png" data-latex="x"/></p></body></html>'
+    expected:
+      html: '<html><body><p><img src="eq.png" data-latex="x"/></p></body></html>'
+      telemetry:
+        hybrid_blocks_created: 0
+
+  - id: TRANSFORM_ERROR_HANDLING
+    target: "_transform_mathml_to_latex error handling"
+    description: "Tests that a malformed <math> tag is skipped gracefully without causing an error."
+    input:
+      html: "<html><body><math><mi>E</mi><mo>=</mo<m</math></body></html>"
+    expected:
+      html: '<html><body><span class="math-inline">$E=$</span></body></html>'
+      telemetry:
+        equations_converted: 1
+
+  - id: BLOCK_LEVEL_PARENT_NOT_P
+    target: "_is_block_level rule 1"
+    description: "Tests that a math element is block-level if its parent is not a <p>."
+    input:
+      html: "<html><body><math><mi>x</mi><mo>+</mo><mn>1</mn></math></body></html>"
+    expected:
+      html: '<html><body><span class="math-inline">$x+1$</span></body></html>'
+      telemetry:
+        equations_converted: 1
+
+  - id: BLOCK_LEVEL_ALONE_IN_P
+    target: "_is_block_level rule 2"
+    description: "Tests that a math element is block-level if it is the only significant content in a <p>."
+    input:
+      html: "<html><body><p> <math><mi>y</mi><mo>=</mo><mn>1</mn></math> </p></body></html>"
+    expected:
+      html: '<html><body><div class="math-block">$$y=1$$</div></body></html>'
+      telemetry:
+        equations_converted: 1
+
+  - id: INLINE_LEVEL_WITH_TEXT
+    target: "_is_block_level inline case"
+    description: "Tests that a math element is inline if it shares a <p> with other text."
+    input:
+      html: "<html><body><p>The equation is <math><mi>z</mi><mo>/</mo><mn>2</mn></math>.</p></body></html>"
+    expected:
+      html: '<html><body><p>The equation is <span class="math-inline">$z/2$</span>.</p></body></html>'
+      telemetry:
+        equations_converted: 1
+
+  - id: CODESHIELD_MATH_TAG
+    target: "Code Shield rule for <math>"
+    description: "Tests that a <math> tag inside a code block is ignored."
+    context:
+      is_code_block: true
+    input:
+      html: "<html><body><math><mi>a</mi></math></body></html>"
+    expected:
+      html: "<html><body><math><mi>a</mi></math></body></html>"
+      telemetry:
+        equations_converted: 0
+
+  - id: CODESHIELD_HYBRID_IMAGE
+    target: "Code Shield rule for hybrid images"
+    description: "Tests that an <img> with LaTeX inside a code block is ignored."
+    context:
+      is_code_block: true
+    input:
+      html: '<html><body><p><img src="eq.png" data-latex="a+b"/></p></body></html>'
+    expected:
+      html: '<html><body><p><img src="eq.png" data-latex="a+b"/></p></body></html>'
+      telemetry:
+        hybrid_blocks_created: 0
+
+  - id: HYBRID_TARGET_SVG
+    target: "Hybrid image processing for <svg>"
+    description: "Tests that an <svg> tag with LaTeX attributes is correctly processed."
+    input:
+      html: '<html><body><p><svg width="100" height="100" data-latex="\int_0^1 x dx"><circle cx="50" cy="50" r="40" /></svg></p></body></html>'
+    expected:
+      html: '<html><body><div class="math-block"><svg width="100" height="100" data-latex="\int_0^1 x dx"><circle cx="50" cy="50" r="40"></circle></svg>$$\int_0^1 x dx$$</div></body></html>'
+      telemetry:
+        hybrid_blocks_created: 1
+
+  - id: HYBRID_NO_LATEX_BYPASS
+    target: "Hybrid image bypass rule"
+    description: "Tests that an image with no LaTeX attributes is ignored."
+    input:
+      html: '<html><body><p><img src="photo.jpg" alt="A nice photo"/></p></body></html>'
+    expected:
+      html: '<html><body><p><img src="photo.jpg" alt="A nice photo"/></p></body></html>'
+      telemetry:
+        hybrid_blocks_created: 0
+
+  - id: HYBRID_BLOCK_P_REPLACEMENT
+    target: "Hybrid image block-level <p> replacement rule"
+    description: "Tests that if a block-level image is in a <p>, the <p> is replaced by the new math div."
+    input:
+      html: '<html><body><p><img src="eq.png" data-latex="E=mc^2"/></p></body></html>'
+    expected:
+      html: '<html><body><div class="math-block"><img src="eq.png" data-latex="E=mc^2"/>$$E=mc^2$$</div></body></html>'
+      telemetry:
+        hybrid_blocks_created: 1
+
+  - id: PROCESS_EXECUTION_ORDER
+    target: "process method execution order"
+    description: "Tests that both MathML and hybrid images are processed in the same run."
+    input:
+      html: '<html><body><math><mi>a</mi><mo>=</mo><mn>1</mn></math><p><img src="eq.png" data-latex="b+c"/></p></body></html>'
+    expected:
+      html: '<html><body><span class="math-inline">$a=1$</span><div class="math-block"><img src="eq.png" data-latex="b+c"/>$$b+c$$</div></body></html>'
+      telemetry:
+        equations_converted: 1
+        hybrid_blocks_created: 1

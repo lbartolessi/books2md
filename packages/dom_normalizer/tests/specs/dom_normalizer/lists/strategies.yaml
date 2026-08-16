@@ -1,0 +1,87 @@
+# File: tests/specs/dom_normalizer/lists/strategies.yaml
+package: lists
+dependencies: ["core"]
+# pipeline_position is not applicable for strategy tests.
+test_cases:
+  # --- ReconstructionStrategy Tests ---
+  - id: RECONSTRUCT_UNORDERED_LIST
+    target: "ReconstructionStrategy - Case A: Unordered"
+    description: "Verifies paragraphs with bullet prefixes are converted to a <ul>."
+    input:
+      html: "<body><p>* Item 1</p><p>* Item 2</p></body>"
+    expected:
+      html: '<body><div class="list-block"><ul><li><p>Item 1</p></li><li><p>Item 2</p></li></ul></div></body>'
+
+  - id: RECONSTRUCT_ORDERED_LIST
+    target: "ReconstructionStrategy - Case A: Ordered"
+    description: "Verifies paragraphs with numeric prefixes are converted to an <ol>."
+    input:
+      html: "<body><p>1. Item 1</p><p>2. Item 2</p></body>"
+    expected:
+      html: '<body><div class="list-block"><ol><li><p>Item 1</p></li><li><p>Item 2</p></li></ol></div></body>'
+
+  - id: RECONSTRUCT_BY_CLASS
+    target: "ReconstructionStrategy - Case B: Vendor Class"
+    description: "Verifies paragraphs with list-like class names are converted."
+    input:
+      html: '<body><p class="calibre-list-item">Item 1</p><p class="calibre-list-item">Item 2</p></body>'
+    expected:
+      html: '<body><div class="list-block"><ul><li><p>Item 1</p></li><li><p>Item 2</p></li></ul></div></body>'
+
+  - id: RECONSTRUCT_MULTILINE_ITEM
+    target: "ReconstructionStrategy - Case C: Multiline"
+    description: "Verifies a continuation paragraph is welded into the preceding list item."
+    input:
+      html: "<body><p>- First part.</p><p>Second part.</p><p>- Next item.</p></body>"
+    expected:
+      html: '<body><div class="list-block"><ul><li><p>First part.</p><p>Second part.</p></li><li><p>Next item.</p></li></ul></div></body>'
+
+  - id: RECONSTRUCT_NESTED_LIST
+    target: "ReconstructionStrategy - Rule: Stack Rule"
+    description: "Verifies a change in prefix level creates a nested list."
+    input:
+      html: "<body><p>1. Main</p><p>a. Sub</p><p>2. Main</p></body>"
+    expected:
+      html: '<body><div class="list-block"><ol><li><p>Main</p><ol><li><p>Sub</p></li></ol></li><li><p>Main</p></li></ol></div></body>'
+
+  - id: ROLLBACK_GUARD_OFF_BOUNDARY
+    target: "ReconstructionStrategy - Rule: Rollback Guard (<2 items)"
+    description: "Verifies a single list-like paragraph is not converted."
+    input:
+      html: "<body><p>- Just one item.</p></body>"
+    expected:
+      html: "<body><p>- Just one item.</p></body>"
+
+  - id: CODE_SHIELD_RECONSTRUCTION
+    target: "ReconstructionStrategy - Rule: Code Shield"
+    description: "Verifies list-like paragraphs inside <code> are ignored by Reconstruction."
+    input:
+      html: "<body><code><p>- Item 1</p><p>- Item 2</p></code></body>"
+    expected:
+      html: "<body><code><p>- Item 1</p><p>- Item 2</p></code></body>"
+
+  # --- SanitizationStrategy Tests ---
+  - id: SANITIZE_ORPHAN_NODE
+    target: "SanitizationStrategy - Orphan Node Wrapping"
+    description: "Verifies a non-<li> child of a <ul> is wrapped in an <li>."
+    input:
+      html: "<body><ul><p>Orphan</p><li>Proper</li></ul></body>"
+    expected:
+      html: '<body><div class="list-block"><ul><li><p>Orphan</p></li><li>Proper</li></ul></div></body>'
+
+  - id: SANITIZE_WRAP_CONTAINER
+    target: "SanitizationStrategy - Container Consistency"
+    description: "Verifies a bare <ul> is wrapped in a div.list-block."
+    input:
+      html: "<body><ul><li>Item 1</li></ul></body>"
+    expected:
+      html: '<body><div class="list-block"><ul><li>Item 1</li></ul></div></body>'
+
+  # --- FusionStrategy Tests ---
+  - id: FUSE_FRAGMENTED_LISTS
+    target: "FusionStrategy - Basic Fusion"
+    description: "Verifies two <ul>s separated by a <br> are fused."
+    input:
+      html: "<body><ul><li>Item 1</li></ul><br/><ul><li>Item 2</li></ul></body>"
+    expected:
+      html: "<body><ul><li>Item 1</li><li>Item 2</li></ul></body>"

@@ -1,0 +1,108 @@
+# File: tests/specs/dom_normalizer/language_tagger.yaml
+package: language_tagger
+dependencies: ["core"]
+pipeline_position: 0
+test_cases:
+  - id: "INITIAL_STATE_TELEMETRY"
+    target: "__init__"
+    description: "Verifies that telemetry counters are initialized to zero."
+    context:
+      primary_language: "en"
+    input:
+      html: "<body><p>Some text.</p></body>"
+    expected:
+      html: '<html lang="en" xml:lang="en"><body><p>Some text.</p></body></html>'
+      telemetry:
+        nodes_tagged: 1
+        language_shifts_detected: 0
+
+  - id: "ROOT_HTML_TAGGING"
+    target: "process (Root HTML Tagging)"
+    description: "Verifies that the primary language is injected into the root <html> tag."
+    context:
+      primary_language: "es"
+    input:
+      html: "<html><head></head><body><p>Texto en español.</p></body></html>"
+    expected:
+      html: '<html lang="es" xml:lang="es"><head></head><body><p>Texto en español.</p></body></html>'
+      telemetry:
+        nodes_tagged: 1
+
+  - id: "CODE_BLOCK_IMMUNITY"
+    target: "process (Code Block Immunity)"
+    description: "Verifies that language tagging is skipped for documents identified as code blocks."
+    context:
+      primary_language: "en"
+      is_code_block: true
+    input:
+      html: '<html><body><p lang="fr">du code</p></body></html>'
+    expected:
+      html: '<html><body><p lang="fr">du code</p></body></html>'
+      telemetry:
+        nodes_tagged: 0
+        language_shifts_detected: 0
+
+  - id: "LANGUAGE_SHIFT_DETECTION"
+    target: "_traverse_and_tag (Language Shift)"
+    description: "Verifies a language shift is detected on a node with a different 'lang' attribute."
+    context:
+      primary_language: "en"
+    input:
+      html: '<body><p>English text.</p><div lang="fr"><p>Texte en français.</p></div></body>'
+    expected:
+      html: '<body lang="en" xml:lang="en"><p>English text.</p><div lang="fr" xml:lang="fr"><p>Texte en français.</p></div></body>'
+      telemetry:
+        nodes_tagged: 2
+        language_shifts_detected: 1
+
+  - id: "STATE_PROPAGATION"
+    target: "_traverse_and_tag (State Propagation)"
+    description: "Verifies that a detected language is correctly propagated to descendant nodes."
+    context:
+      primary_language: "en"
+    input:
+      html: '<body><div lang="es"><p>Este es el primer párrafo.</p><p>Este es el segundo.</p></div></body>'
+    expected:
+      html: '<body lang="en" xml:lang="en"><div lang="es" xml:lang="es"><p>Este es el primer párrafo.</p><p>Este es el segundo.</p></div></body>'
+      telemetry:
+        nodes_tagged: 2
+        language_shifts_detected: 1
+
+  - id: "ATTRIBUTE_NORMALIZATION"
+    target: "_traverse_and_tag (Attribute Normalization)"
+    description: "Verifies that a new 'xml:lang' attribute is normalized to lowercase."
+    context:
+      primary_language: "en"
+    input:
+      html: '<body><p lang="DE">Ein deutscher Satz.</p></body>'
+    expected:
+      html: '<body lang="en" xml:lang="en"><p lang="DE" xml:lang="de">Ein deutscher Satz.</p></body>'
+      telemetry:
+        nodes_tagged: 2
+        language_shifts_detected: 1
+
+  - id: "SUBTAG_STRIPPING_NO_SHIFT"
+    target: "_traverse_and_tag (Subtag Stripping)"
+    description: "Verifies a regional subtag does not trigger a shift if the base language matches the parent's."
+    context:
+      primary_language: "en"
+    input:
+      html: '<body><p lang="en-US">American English.</p></body>'
+    expected:
+      html: '<body lang="en" xml:lang="en"><p lang="en-US">American English.</p></body>'
+      telemetry:
+        nodes_tagged: 1
+        language_shifts_detected: 0
+
+  - id: "SUBTAG_STRIPPING_WITH_SHIFT"
+    target: "_traverse_and_tag (Subtag Stripping with Shift)"
+    description: "Verifies a regional subtag triggers a shift if the base language differs from the parent's."
+    context:
+      primary_language: "en"
+    input:
+      html: '<body><p lang="es-MX">Español de México.</p></body>'
+    expected:
+      html: '<body lang="en" xml:lang="en"><p lang="es-MX" xml:lang="es">Español de México.</p></body>'
+      telemetry:
+        nodes_tagged: 2
+        language_shifts_detected: 1

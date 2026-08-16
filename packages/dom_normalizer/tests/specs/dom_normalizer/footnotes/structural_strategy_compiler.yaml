@@ -1,0 +1,20 @@
+# File: tests/specs/dom_normalizer/footnotes/structural_strategy_compiler.yaml
+package: footnotes
+dependencies: ["core"]
+# pipeline_position is not applicable for a non-mutating analyzer.
+test_cases:
+  - id: COMPILE_STRATEGY_CONCEPTUAL
+    target: "StructuralStrategyCompiler.compile_footnote_strategy"
+    description: "Conceptual test for the non-mutating compiler. Verifies no DOM change occurs when analyzing a potential pattern."
+    input:
+      html: '<body><p>Text with a <a href="#note1" class="callout">1</a> note.</p><div class="notes"><p id="note1">Note content.</p></div></body>'
+    expected:
+      html: '<body><p>Text with a <a href="#note1" class="callout">1</a> note.</p><div class="notes"><p id="note1">Note content.</p></div></body>'
+
+  - id: COMPILE_STRATEGY_NO_PATTERN_CONCEPTUAL
+    target: "StructuralStrategyCompiler.compile_footnote_strategy"
+    description: "Conceptual test verifying no DOM change occurs when the document contains no discernible footnote pattern to compile."
+    input:
+      html: "<p>This is just a regular paragraph with no notes.</p>"
+    expected:
+      html: "<p>This is just a regular paragraph with no notes.</p>"

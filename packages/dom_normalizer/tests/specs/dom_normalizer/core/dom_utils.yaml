@@ -1,0 +1,52 @@
+# File: tests/specs/dom_normalizer/core/dom_utils.yaml
+package: core
+dependencies: []
+# pipeline_position is not applicable for a utility module.
+test_cases:
+  - id: IS_PAGE_MARKER_NOISE_CONCEPTUAL
+    target: "dom_utils.is_page_marker_noise"
+    description: "Conceptual test for the non-mutating function `is_page_marker_noise`. Verifies no DOM change occurs when a page marker is present."
+    input:
+      html: "<p>Page 123</p>"
+    expected:
+      html: "<p>Page 123</p>"
+
+  - id: IS_IGNORABLE_NODE_CONCEPTUAL
+    target: "dom_utils.is_ignorable_node"
+    description: "Conceptual test for the non-mutating function `is_ignorable_node`. Verifies no DOM change occurs for an ignorable node."
+    input:
+      html: "<p>Some text<br/>and a break</p>"
+    expected:
+      html: "<p>Some text<br/>and a break</p>"
+
+  - id: NORMALIZE_WHITESPACE_CONCEPTUAL
+    target: "dom_utils.normalize_whitespace"
+    description: "Conceptual test for the non-mutating function `normalize_whitespace`. Verifies no DOM change occurs."
+    input:
+      html: "<p>Extra   space</p>"
+    expected:
+      html: "<p>Extra   space</p>"
+
+  - id: COERCE_CLASS_LIST_CONCEPTUAL
+    target: "dom_utils.coerce_class_list"
+    description: "Conceptual test for the non-mutating function `coerce_class_list`. Verifies no DOM change occurs."
+    input:
+      html: '<p class=" a  b a ">Text</p>'
+    expected:
+      html: '<p class=" a  b a ">Text</p>'
+
+  - id: STRIP_CSS_PROPERTIES_CONCEPTUAL
+    target: "dom_utils.strip_css_properties"
+    description: "Conceptual test for the non-mutating function `strip_css_properties`. Verifies no DOM change occurs."
+    input:
+      html: '<p style="color: red; font-size: 12px;">Text</p>'
+    expected:
+      html: '<p style="color: red; font-size: 12px;">Text</p>'
+
+  - id: GENERATE_METADATA_CONCEPTUAL
+    target: "dom_utils.generate_processor_metadata"
+    description: "Conceptual test for the non-mutating function `generate_processor_metadata`. Verifies no DOM change occurs."
+    input:
+      html: "<p>Text</p>"
+    expected:
+      html: "<p>Text</p>"

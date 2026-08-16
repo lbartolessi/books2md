@@ -1,0 +1,127 @@
+# File: tests/specs/dom_normalizer/media/handlers.yaml
+package: media
+dependencies: ["core"]
+test_cases:
+  # --- UnsupportedMediaHandler Tests (Layer D) ---
+  - id: UNSUPPORTED_MEDIA_SCRIPT_PURGE
+    target: "UnsupportedMediaHandler"
+    description: "Verifies <script> tags are identified and purged, leaving a placeholder comment."
+    input:
+      html: '<body><p>Text before.</p><script src="bad.js"></script><p>Text after.</p></body>'
+    expected:
+      html: '<body><p>Text before.</p><p class="media-placeholder"><em>[Multimedia Element Omitted: Script or interactive component unsupported by portable layouts]</em></p><p>Text after.</p></body>'
+      telemetry:
+        unsupported_media_purged: 1
+
+  - id: UNSUPPORTED_MEDIA_CANVAS_PURGE
+    target: "UnsupportedMediaHandler"
+    description: "Verifies <canvas> tags are identified and purged, leaving a placeholder comment."
+    input:
+      html: '<body><canvas id="my-canvas"></canvas></body>'
+    expected:
+      html: '<body><p class="media-placeholder"><em>[Multimedia Element Omitted: Script or interactive component unsupported by portable layouts]</em></p></body>'
+      telemetry:
+        unsupported_media_purged: 1
+
+  # --- ExternalVideoHandler Tests (Layer C) ---
+  - id: EXTERNAL_VIDEO_YOUTUBE_WRAP
+    target: "ExternalVideoHandler"
+    description: "Verifies a YouTube <iframe> is wrapped in a semantic <figure>."
+    input:
+      html: '<body><iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ"></iframe></body>'
+    expected:
+      html: '<body><div class="protected video-block" data-video-src="https://www.youtube.com/embed/dQw4w9WgXcQ"><img alt="Video Placeholder" src="placeholder.png"/></div></body>'
+      telemetry:
+        external_videos_wrapped: 1
+
+  - id: EXTERNAL_VIDEO_VIMEO_WRAP
+    target: "ExternalVideoHandler"
+    description: "Verifies a Vimeo <embed> is wrapped in a semantic <figure>."
+    input:
+      html: '<body><embed src="https://player.vimeo.com/video/12345"/></body>'
+    expected:
+      html: '<body><div class="protected video-block" data-video-src="https://player.vimeo.com/video/12345"><img alt="Video Placeholder" src="placeholder.png"/></div></body>'
+      telemetry:
+        external_videos_wrapped: 1
+
+  - id: EXTERNAL_VIDEO_IGNORE_NON_VIDEO_IFRAME
+    target: "ExternalVideoHandler"
+    description: "Verifies a non-video <iframe> is ignored by the handler."
+    input:
+      html: '<body><iframe src="https://example.com"></iframe></body>'
+    expected:
+      html: '<body><iframe src="https://example.com"></iframe></body>'
+      telemetry:
+        external_videos_wrapped: 0
+
+  # --- Base64MediaHandler Tests (Layer A) ---
+  - id: BASE64_IMAGE_EXTRACTION
+    target: "Base64MediaHandler"
+    description: "Verifies embedded Base64 image data is extracted, saved, and the tag is replaced."
+    input:
+      html: '<body><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" alt="pixel"/></body>'
+    expected:
+      html: '<body><figure class="image-block"><img alt="pixel" src="../media/extracted/asset_63ef318d96b5d0d0ceba6e04a4e622b1158335cdc67c49e27839132c6f655058.png"/></figure></body>'
+      telemetry:
+        base64_media_extracted: 1
+        images_processed: 1
+      files_written:
+        - path: "test_book/media/extracted/asset_63ef318d96b5d0d0ceba6e04a4e622b1158335cdc67c49e27839132c6f655058.png"
+          content_hash: "63ef318d96b5d0d0ceba6e04a4e622b1158335cdc67c49e27839132c6f655058"
+
+  - id: BASE64_IGNORE_NON_IMAGE
+    target: "Base64MediaHandler"
+    description: "Verifies that non-image Base64 data URIs are ignored."
+    input:
+      html: '<body><a href="data:application/pdf;base64,JVBERi0xLjQKJ...">PDF Link</a></body>'
+    expected:
+      html: '<body><a href="data:application/pdf;base64,JVBERi0xLjQKJ...">PDF Link</a></body>'
+      telemetry:
+        base64_media_extracted: 0
+
+  # --- LocalMediaHandler Tests (Layer B) ---
+  - id: LOCAL_IMAGE_RELOCATION
+    target: "LocalMediaHandler"
+    description: "Verifies a local image is relocated and its tag normalized."
+    input:
+      html: '<body><img src="assets/picture.jpg" id="pic1"/></body>'
+    expected:
+      html: '<body><figure class="image-block"><img id="pic1" src="../media/images/asset_placeholder-hash.jpg"/></figure></body>'
+      telemetry:
+        local_media_relocated: 1
+        images_processed: 1
+      files_written:
+        - path: "test_book/media/images/asset_placeholder-hash.jpg"
+
+  - id: LOCAL_AUDIO_RELOCATION
+    target: "LocalMediaHandler"
+    description: "Verifies a local audio file is relocated and its tag normalized."
+    input:
+      html: '<body><audio src="assets/sound.mp3"><source src="assets/sound.ogg"></audio></body>'
+    expected:
+      html: '<body><figure class="audio-block"><audio controls="" src="../media/audio/asset_placeholder-hash.mp3"><source src="../media/audio/asset_placeholder-hash.ogg"/></audio></figure></body>'
+      telemetry:
+        local_media_relocated: 2
+        audio_files_processed: 2
+
+  - id: LOCAL_VIDEO_RELOCATION_WITH_POSTER
+    target: "LocalMediaHandler"
+    description: "Verifies a local video and its poster image are relocated and normalized."
+    input:
+      html: '<body><video poster="thumb.jpg"><source src="assets/movie.mp4" type="video/mp4"></video></body>'
+    expected:
+      html: '<body><figure class="video-block"><video controls="" poster="../media/images/asset_placeholder-hash.jpg"><source src="../media/video/asset_placeholder-hash.mp4" type="video/mp4"/></video></figure></body>'
+      telemetry:
+        local_media_relocated: 2
+        video_files_processed: 1
+        images_processed: 1
+
+  - id: LOCAL_MEDIA_IGNORE_EXTERNAL_URL
+    target: "LocalMediaHandler"
+    description: "Verifies that external http/https URLs are ignored by the local handler."
+    input:
+      html: '<body><img src="https://example.com/image.png"/></body>'
+    expected:
+      html: '<body><img src="https://example.com/image.png"/></body>'
+      telemetry:
+        local_media_relocated: 0

@@ -1,0 +1,84 @@
+# File: tests/specs/dom_normalizer/core/context.yaml
+package: core
+dependencies: []
+# pipeline_position is not applicable for a context object.
+test_cases:
+  - id: NORMALIZE_INLINE_FLOAT_STYLE
+    target: "BookStyleContext.normalize_inline_floats"
+    description: "Verifies that an inline 'float' style promotes the node to a floating element by adding the canonical class."
+    input:
+      html: '<p style="float: left;">This is a floating paragraph.</p>'
+    expected:
+      html: '<p class="floating-element" style="float: left;">This is a floating paragraph.</p>'
+
+  - id: NORMALIZE_INLINE_POSITION_STYLE
+    target: "BookStyleContext.normalize_inline_floats"
+    description: "Verifies that an inline 'position: absolute' style promotes the node to a floating element."
+    input:
+      html: '<div style="position: absolute; top: 10px;">An absolutely positioned div.</div>'
+    expected:
+      html: '<div class="floating-element" style="position: absolute; top: 10px;">An absolutely positioned div.</div>'
+
+  - id: NORMALIZE_INLINE_FLOAT_IDEMPOTENCY
+    target: "BookStyleContext.normalize_inline_floats"
+    description: "Verifies that normalize_inline_floats makes no changes if the canonical class is already present."
+    input:
+      html: '<p class="floating-element" style="float: right;">Already a floating element.</p>'
+    expected:
+      html: '<p class="floating-element" style="float: right;">Already a floating element.</p>'
+
+  - id: NORMALIZE_INLINE_FLOAT_NO_MATCH
+    target: "BookStyleContext.normalize_inline_floats"
+    description: "Verifies that a non-floating style does not trigger class promotion."
+    input:
+      html: '<p style="color: red;">Just a regular paragraph.</p>'
+    expected:
+      html: '<p style="color: red;">Just a regular paragraph.</p>'
+
+  - id: NORMALIZE_INLINE_INDENT_EM_ON_BOUNDARY
+    target: "BookStyleContext.normalize_inline_indents - Rule: Thresholds (>=1.5em)"
+    description: "Verifies a significant 'margin-left' of exactly 1.5em promotes the node to a blockquote element."
+    input:
+      html: '<p style="margin-left: 1.5em;">This is an indented paragraph.</p>'
+    expected:
+      html: '<p class="blockquote-element" data-dn-indent-level="1.5" style="margin-left: 1.5em;">This is an indented paragraph.</p>'
+
+  - id: NORMALIZE_INLINE_INDENT_EM_OFF_BOUNDARY
+    target: "BookStyleContext.normalize_inline_indents - Rule: Thresholds (<1.5em)"
+    description: "Verifies an insignificant 'margin-left' of less than 1.5em does not promote the node."
+    input:
+      html: '<p style="margin-left: 1.4em;">This indent is too small.</p>'
+    expected:
+      html: '<p style="margin-left: 1.4em;">This indent is too small.</p>'
+
+  - id: NORMALIZE_INLINE_INDENT_PX_ON_BOUNDARY
+    target: "BookStyleContext.normalize_inline_indents - Rule: Thresholds (>=24px)"
+    description: "Verifies a significant 'padding-left' of exactly 24px promotes the node."
+    input:
+      html: '<p style="padding-left: 24px;">This is an indented paragraph.</p>'
+    expected:
+      html: '<p class="blockquote-element" data-dn-indent-level="24" style="padding-left: 24px;">This is an indented paragraph.</p>'
+
+  - id: NORMALIZE_INLINE_INDENT_PX_OFF_BOUNDARY
+    target: "BookStyleContext.normalize_inline_indents - Rule: Thresholds (<24px)"
+    description: "Verifies an insignificant 'padding-left' of less than 24px does not promote the node."
+    input:
+      html: '<p style="padding-left: 23px;">This indent is too small.</p>'
+    expected:
+      html: '<p style="padding-left: 23px;">This indent is too small.</p>'
+
+  - id: NORMALIZE_INLINE_INDENT_IDEMPOTENCY
+    target: "BookStyleContext.normalize_inline_indents"
+    description: "Verifies that normalize_inline_indents makes no changes if the canonical class is already present."
+    input:
+      html: '<p class="blockquote-element" style="margin-left: 2em;">Already a blockquote element.</p>'
+    expected:
+      html: '<p class="blockquote-element" style="margin-left: 2em;">Already a blockquote element.</p>'
+
+  - id: NORMALIZE_INLINE_INDENT_NO_MATCH
+    target: "BookStyleContext.normalize_inline_indents"
+    description: "Verifies that a non-indenting style does not trigger class promotion."
+    input:
+      html: '<p style="font-weight: bold;">Just a regular paragraph.</p>'
+    expected:
+      html: '<p style="font-weight: bold;">Just a regular paragraph.</p>'

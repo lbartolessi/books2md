@@ -1,0 +1,36 @@
+# File: tests/specs/dom_normalizer/core/list_utils.yaml
+package: core
+dependencies: []
+# pipeline_position is not applicable for a utility module.
+test_cases:
+  - id: GET_TEXT_FROM_CHILD_CONCEPTUAL
+    target: "list_utils.get_text_from_child"
+    description: "Conceptual test for the utility function `get_text_from_child`. Verifies no DOM change occurs."
+    input:
+      html: "<p>Some <b>text</b></p>"
+    expected:
+      html: "<p>Some <b>text</b></p>"
+
+  - id: TRIM_TEXT_FROM_TAG_START_CONCEPTUAL
+    target: "list_utils.trim_text_from_tag_start"
+    description: "Conceptual test for the mutating utility function `trim_text_from_tag_start`. Verifies no DOM change occurs in this test context."
+    input:
+      html: "<p><b>1.</b> First item</p>"
+    expected:
+      html: "<p><b>1.</b> First item</p>"
+
+  - id: HANDLE_PARTIAL_PREFIX_CONSUMPTION_CONCEPTUAL
+    target: "list_utils.handle_partial_prefix_consumption"
+    description: "Conceptual test for the mutating utility function `handle_partial_prefix_consumption`. Verifies no DOM change occurs in this test context."
+    input:
+      html: "<p>PrefixText</p>"
+    expected:
+      html: "<p>PrefixText</p>"
+
+  - id: STRIP_PREFIX_FROM_TAG_CONCEPTUAL
+    target: "list_utils.strip_prefix_from_tag"
+    description: "Conceptual test for the mutating utility function `strip_prefix_from_tag`. Verifies no DOM change occurs in this test context."
+    input:
+      html: "<p>-- List item</p>"
+    expected:
+      html: "<p>-- List item</p>"

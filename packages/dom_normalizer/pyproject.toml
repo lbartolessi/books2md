@@ -1,0 +1,32 @@
+[project]
+name = "dom-normalizer"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "lbartolessi", email = "lbartolessi@zoho.eu" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "beautifulsoup4>=4.15.0",
+    "filelock>=3.32.3",
+    "html5lib>=1.1",
+    "lingua-language-detector>=2.2.0",
+    "lxml>=6.1.1",
+    "pydantic-settings>=2.15.0",
+    "pyyaml>=6.0.3",
+]
+
+[build-system]
+requires = ["uv_build>=0.10.12,<0.11.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "markdownify>=1.2.3",
+    "mypy>=2.3.1",
+    "pytest>=9.1.1",
+    "requests>=2.34.2",
+    "ruff>=0.16.3",
+    "tqdm>=4.70.0",
+]

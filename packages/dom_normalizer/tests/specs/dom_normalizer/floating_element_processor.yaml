@@ -1,0 +1,135 @@
+# File: tests/specs/dom_normalizer/floating_element_processor.yaml
+package: floating_element_processor
+dependencies: ["core"]
+pipeline_position: 3
+test_cases:
+  - id: "INITIAL_STATE_TELEMETRY"
+    target: "__init__"
+    description: "Verifies that telemetry counters are initialized to zero on a document with no floating elements."
+    input:
+      html: "<body><p>No floating elements here.</p></body>"
+    expected:
+      html: "<body><p>No floating elements here.</p></body>"
+      telemetry:
+        asides_created: 0
+        containment_guard_rejections: 0
+        density_guard_rejections: 0
+        elements_evaluated: 0
+
+  - id: "CODE_BLOCK_SHIELD"
+    target: "Step 1: Code Block Shield"
+    description: "Verifies that floating elements inside code blocks are ignored."
+    input:
+      html: '<body><code><div id="f1" class="floating-element">float</div></code></body>'
+    expected:
+      html: '<body><code><div id="f1" class="floating-element">float</div></code></body>'
+      telemetry:
+        elements_evaluated: 0
+        asides_created: 0
+
+  - id: "NON_FLOATING_ELEMENT_IGNORED"
+    target: "Step 2: Molecular Identity Verification"
+    description: "Verifies that elements not identified as floating are ignored and not evaluated."
+    input:
+      html: '<body><div class="not-a-float">text</div></body>'
+    expected:
+      html: '<body><div class="not-a-float">text</div></body>'
+      telemetry:
+        elements_evaluated: 0
+
+  - id: "CONTAINMENT_GUARD_BODY"
+    target: "Step 3: Containment Guard (body)"
+    description: "Verifies a floating element containing a <body> tag is preserved as dense."
+    input:
+      html: '<body><div class="floating-element"><main>Some content</main></div></body>'
+    expected:
+      html: '<body><div class="floating-element"><main>Some content</main></div></body>'
+      telemetry:
+        elements_evaluated: 1
+        containment_guard_rejections: 1
+        asides_created: 0
+
+  - id: "CONTAINMENT_GUARD_MULTIPLE_HEADINGS"
+    target: "Step 3: Containment Guard (headings)"
+    description: "Verifies a floating element with more than one heading is preserved as dense."
+    input:
+      html: '<body><div class="floating-element"><h1>h1</h1><h2>h2</h2></div></body>'
+    expected:
+      html: '<body><div class="floating-element"><h1>h1</h1><h2>h2</h2></div></body>'
+      telemetry:
+        elements_evaluated: 1
+        containment_guard_rejections: 1
+        asides_created: 0
+
+  - id: "ABSOLUTE_LENGTH_EXEMPTION_UNDER_50"
+    target: "Step 4: Absolute Length Exemption (< 50)"
+    description: "Verifies a dense node with 49 chars is mutated due to exemption."
+    input:
+      html: '<body><p>main text</p><div class="floating-element">This floating text has 49 characters exactly.....</div></body>'
+    expected:
+      html: "<body><p>main text</p><aside>This floating text has 49 characters exactly.....</aside></body>"
+      telemetry:
+        asides_created: 1
+        elements_evaluated: 1
+
+  - id: "ABSOLUTE_LENGTH_EXEMPTION_AT_50"
+    target: "Step 4: Absolute Length Exemption (>= 50)"
+    description: "Verifies a dense node with 50 chars is preserved as it is not exempt from density checks."
+    input:
+      html: '<body><p>main text</p><div class="floating-element">This floating text has 50 characters exactly......</div></body>'
+    expected:
+      html: '<body><p>main text</p><div class="floating-element">This floating text has 50 characters exactly......</div></body>'
+      telemetry:
+        density_guard_rejections: 1
+        elements_evaluated: 1
+        asides_created: 0
+
+  - id: "STANDARD_DENSITY_CAP_ON_THRESHOLD"
+    target: "Step 5: Standard Density Cap (<= 0.20)"
+    description: "Verifies a standard node with CDR exactly at the 0.20 threshold is mutated."
+    input:
+      html: '<body><p>xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</p><div class="floating-element">xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</div></body>'
+    expected:
+      html: "<body><p>xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</p><aside>xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</aside></body>"
+      telemetry:
+        asides_created: 1
+
+  - id: "STANDARD_DENSITY_CAP_OVER_THRESHOLD"
+    target: "Step 5: Standard Density Cap (> 0.20)"
+    description: "Verifies a standard node with CDR just over the 0.20 threshold is preserved."
+    input:
+      html: '<body><p>xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</p><div class="floating-element">xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</div></body>'
+    expected:
+      html: '<body><p>xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</p><div class="floating-element">xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</div></body>'
+      telemetry:
+        density_guard_rejections: 1
+
+  - id: "LAYOUT_ENHANCED_DENSITY_CAP_ON_THRESHOLD"
+    target: "Step 5: Layout Enhanced Density Cap (<= 0.65)"
+    description: "Verifies a layout-enhanced node with CDR at the 0.65 threshold is mutated."
+    input:
+      html: '<body><p>xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</p><div class="floating-element sidebar">xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</div></body>'
+    expected:
+      html: "<body><p>xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</p><aside>xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</aside></body>"
+      telemetry:
+        asides_created: 1
+
+  - id: "LAYOUT_ENHANCED_DENSITY_CAP_OVER_THRESHOLD"
+    target: "Step 5: Layout Enhanced Density Cap (> 0.65)"
+    description: "Verifies a layout-enhanced node with CDR over the 0.65 threshold is preserved."
+    input:
+      html: '<body><p>xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</p><div class="floating-element sidebar">xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</div></body>'
+    expected:
+      html: '<body><p>xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</p><div class="floating-element sidebar">xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</div></body>'
+      telemetry:
+        density_guard_rejections: 1
+
+  - id: "ZERO_CLASS_ANNIHILATION_CONTRACT"
+    target: "Step 5: Transformation Action & Node Reconstruction"
+    description: "Verifies all attributes except 'id' are stripped and no classes are injected."
+    input:
+      html: '<body><div id="keep-me" class="floating-element" style="color:red" data-foo="bar">short</div></body>'
+    expected:
+      html: '<body><aside id="keep-me">short</aside></body>'
+      telemetry:
+        asides_created: 1

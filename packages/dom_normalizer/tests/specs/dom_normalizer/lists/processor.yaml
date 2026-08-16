@@ -1,0 +1,103 @@
+# File: tests/specs/dom_normalizer/lists/processor.yaml
+package: lists
+dependencies: ["core"]
+pipeline_position: 3
+test_cases:
+  - id: INITIAL_STATE_TELEMETRY
+    target: "ListNormalizer.__init__"
+    description: "Verifies that all list-related telemetry counters are initialized to zero."
+    input:
+      html: "<p>A document with no lists.</p>"
+    expected:
+      html: "<p>A document with no lists.</p>"
+      telemetry:
+        unordered_lists_recovered: 0
+        ordered_lists_recovered: 0
+        lists_fused: 0
+        multiline_items_welded: 0
+        total_raw_paragraphs_purged: 0
+
+  - id: RECONSTRUCT_UNORDERED_LIST
+    target: "Suite 1: Reconstruction (Unordered)"
+    description: "Verifies a sequence of paragraphs with hanging bullet prefixes is converted to a semantic <ul>."
+    input:
+      html: "<body><p>- Item 1</p><p>- Item 2</p></body>"
+    expected:
+      html: '<body><div class="list-block"><ul><li><p>Item 1</p></li><li><p>Item 2</p></li></ul></div></body>'
+      telemetry:
+        unordered_lists_recovered: 1
+        total_raw_paragraphs_purged: 2
+
+  - id: RECONSTRUCT_ORDERED_LIST
+    target: "Suite 1: Reconstruction (Ordered)"
+    description: "Verifies a sequence of paragraphs with numeric prefixes is converted to a semantic <ol>."
+    input:
+      html: "<body><p>1. Item 1</p><p>2. Item 2</p></body>"
+    expected:
+      html: '<body><div class="list-block"><ol><li><p>Item 1</p></li><li><p>Item 2</p></li></ol></div></body>'
+      telemetry:
+        ordered_lists_recovered: 1
+        total_raw_paragraphs_purged: 2
+
+  - id: RECONSTRUCT_NESTED_LIST
+    target: "Suite 1: Reconstruction (Hierarchical Depth)"
+    description: "Verifies that a change in prefix type correctly creates a nested list."
+    input:
+      html: "<body><p>1. Main item</p><p>a. Sub-item</p><p>b. Another sub-item</p><p>2. Second main item</p></body>"
+    expected:
+      html: '<body><div class="list-block"><ol><li><p>Main item</p><ol><li><p>Sub-item</p></li><li><p>Another sub-item</p></li></ol></li><li><p>Second main item</p></li></ol></div></body>'
+      telemetry:
+        ordered_lists_recovered: 2 # One outer list, one nested list
+        total_raw_paragraphs_purged: 4
+
+  - id: RECONSTRUCT_MULTILINE_ITEM
+    target: "Suite 1: Reconstruction (Multiline Items)"
+    description: "Verifies a continuation paragraph without a prefix is welded into the preceding list item."
+    input:
+      html: "<body><p>- First part of item one.</p><p>Second part of item one.</p><p>- Item two.</p></body>"
+    expected:
+      html: '<body><div class="list-block"><ul><li><p>First part of item one.</p><p>Second part of item one.</p></li><li><p>Item two.</p></li></ul></div></body>'
+      telemetry:
+        unordered_lists_recovered: 1
+        multiline_items_welded: 1
+        total_raw_paragraphs_purged: 3
+
+  - id: ROLLBACK_GUARD_FEWER_THAN_TWO_ITEMS
+    target: "Suite 1: Rule - Hard Commit Criteria"
+    description: "Verifies that a sequence with fewer than 2 distinct list items is not converted."
+    input:
+      html: "<body><p>- A single list item.</p><p>Just a normal paragraph.</p></body>"
+    expected:
+      html: "<body><p>- A single list item.</p><p>Just a normal paragraph.</p></body>"
+      telemetry:
+        unordered_lists_recovered: 0
+
+  - id: SANITIZE_ORPHAN_NODE
+    target: "Suite 2: Sanitization (Orphan Nodes)"
+    description: "Verifies a non-<li> direct child of a <ul> is correctly wrapped in an <li>."
+    input:
+      html: "<body><ul><p>This is an orphan paragraph.</p><li>A regular item.</li></ul></body>"
+    expected:
+      html: '<body><div class="list-block"><ul><li><p>This is an orphan paragraph.</p></li><li>A regular item.</li></ul></div></body>'
+      telemetry:
+        lists_sanitized: 1
+
+  - id: FUSE_FRAGMENTED_LISTS
+    target: "Suite 3: Fusion"
+    description: "Verifies two lists of the same type separated by noise are fused into one."
+    input:
+      html: "<body><ul><li>Item 1</li></ul><br/><ul><li>Item 2</li></ul></body>"
+    expected:
+      html: '<body><div class="list-block"><ul><li>Item 1</li><li>Item 2</li></ul></div></body>'
+      telemetry:
+        lists_fused: 1
+
+  - id: CODE_SHIELD_PROTECTION
+    target: "Rule: Code Shield"
+    description: "Verifies that list-like structures inside <code> blocks are ignored."
+    input:
+      html: "<body><code><p>- Item 1</p><p>- Item 2</p></code></body>"
+    expected:
+      html: "<body><code><p>- Item 1</p><p>- Item 2</p></code></body>"
+      telemetry:
+        unordered_lists_recovered: 0

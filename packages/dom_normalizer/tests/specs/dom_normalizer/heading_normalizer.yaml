@@ -1,0 +1,119 @@
+# File: tests/specs/dom_normalizer/heading_normalizer.yaml
+package: heading_normalizer
+dependencies: ["core"]
+pipeline_position: 1
+test_cases:
+  - id: "INITIAL_STATE_TELEMETRY"
+    target: "__init__"
+    description: "Verifies that telemetry counters are initialized to zero."
+    input:
+      html: "<body><h1>A heading</h1><p>A paragraph.</p></body>"
+    expected:
+      html: "<body><h1>A heading</h1><p>A paragraph.</p></body>"
+      telemetry:
+        headings_promoted: 0
+        headings_demoted: 0
+        hierarchy_fixes: 0
+
+  - id: "CODE_BLOCK_IMMUNITY"
+    target: "process (Code Block Immunity)"
+    description: "Verifies that heading-like paragraphs inside code blocks are not promoted."
+    input:
+      html: "<body><code><p><b>Not a heading</b></p></code></body>"
+    expected:
+      html: "<body><code><p><b>Not a heading</b></p></code></body>"
+      telemetry:
+        headings_promoted: 0
+
+  - id: "PROMOTE_BOLD_PARAGRAPH"
+    target: "_promote_styled_paragraphs (Bold Trigger)"
+    description: "Verifies a paragraph containing only bold text is promoted to h2."
+    input:
+      html: "<p><b>Chapter Title</b></p>"
+    expected:
+      html: "<h2>Chapter Title</h2>"
+      telemetry:
+        headings_promoted: 1
+
+  - id: "PROMOTE_CLASS_BASED_HEADING"
+    target: "_promote_styled_paragraphs (Class Trigger)"
+    description: "Verifies a paragraph with a heading class is promoted to h1."
+    context:
+      heading_classes:
+        h1: ["chapter-title"]
+    input:
+      html: '<p class="chapter-title">My Book</p>'
+    expected:
+      html: "<h1>My Book</h1>"
+      telemetry:
+        headings_promoted: 1
+
+  - id: "PROMOTE_ARIA_HEADING"
+    target: "_promote_styled_paragraphs (ARIA Trigger)"
+    description: "Verifies an element with ARIA heading role is converted to a heading tag."
+    input:
+      html: '<div role="heading" aria-level="3">Section 1.1</div>'
+    expected:
+      html: "<h3>Section 1.1</h3>"
+      telemetry:
+        headings_promoted: 1
+
+  - id: "DEMOTE_HEADING_LENGTH_OVER_THRESHOLD"
+    target: "_demote_invalid_headings (Length Demotion)"
+    description: "Verifies a heading with more than 150 characters is demoted to a paragraph."
+    input:
+      html: "<h1>This is an excessively long and verbose heading that goes on and on, far beyond the reasonable character limit for a semantic heading, making it a prime candidate for demotion.</h1>"
+    expected:
+      html: '<p data-demoted-from="h1">This is an excessively long and verbose heading that goes on and on, far beyond the reasonable character limit for a semantic heading, making it a prime candidate for demotion.</p>'
+      telemetry:
+        headings_demoted: 1
+
+  - id: "PRESERVE_HEADING_LENGTH_ON_THRESHOLD"
+    target: "_demote_invalid_headings (Length Demotion)"
+    description: "Verifies a heading with exactly 150 characters is preserved."
+    input:
+      html: "<h1>This is a perfectly acceptable heading that has exactly one hundred and fifty characters, which is the maximum allowed length heading in this system..</h1>"
+    expected:
+      html: "<h1>This is a perfectly acceptable heading that has exactly one hundred and fifty characters, which is the maximum allowed length heading in this system..</h1>"
+      telemetry:
+        headings_demoted: 0
+
+  - id: "DEMOTE_HEADING_LINK_DENSITY_OVER_THRESHOLD"
+    target: "_demote_invalid_headings (Link Density Demotion)"
+    description: "Verifies a heading with over 50% link text is demoted."
+    input:
+      html: '<h2>See also: <a href="#">The First Link</a> and <a href="#">The Second Link</a></h2>'
+    expected:
+      html: '<p data-demoted-from="h2">See also: <a href="#">The First Link</a> and <a href="#">The Second Link</a></p>'
+      telemetry:
+        headings_demoted: 1
+
+  - id: "PRESERVE_HEADING_LINK_DENSITY_UNDER_THRESHOLD"
+    target: "_demote_invalid_headings (Link Density Demotion)"
+    description: "Verifies a heading with less than 50% link text is preserved."
+    input:
+      html: '<h2>This is a long heading with just <a href="#">one link</a></h2>'
+    expected:
+      html: '<h2>This is a long heading with just <a href="#">one link</a></h2>'
+      telemetry:
+        headings_demoted: 0
+
+  - id: "HIERARCHY_CORRECTION_SKIP_LEVEL"
+    target: "_fix_hierarchy (Hierarchy Correction)"
+    description: "Verifies that an h3 following an h1 is corrected to an h2."
+    input:
+      html: "<body><h1>Chapter 1</h1><h3>Section 1.1</h3></body>"
+    expected:
+      html: "<body><h1>Chapter 1</h1><h2>Section 1.1</h2></body>"
+      telemetry:
+        hierarchy_fixes: 1
+
+  - id: "HIERARCHY_PRESERVATION_CORRECT_ORDER"
+    target: "_fix_hierarchy (Hierarchy Correction)"
+    description: "Verifies that a correct heading sequence (h1, h2, h3) is not modified."
+    input:
+      html: "<body><h1>Ch 1</h1><h2>Sec 1.1</h2><h3>Sub 1.1.1</h3></body>"
+    expected:
+      html: "<body><h1>Ch 1</h1><h2>Sec 1.1</h2><h3>Sub 1.1.1</h3></body>"
+      telemetry:
+        hierarchy_fixes: 0

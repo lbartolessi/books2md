@@ -1,0 +1,28 @@
+# File: tests/specs/dom_normalizer/core/navigation_utils.yaml
+package: core
+dependencies: []
+# pipeline_position is not applicable for a utility module.
+test_cases:
+  - id: IS_NAVIGATION_ELEMENT_CONCEPTUAL
+    target: "navigation_utils.is_navigation_element"
+    description: "Conceptual test for the non-mutating function `is_navigation_element`. Verifies no DOM change occurs."
+    input:
+      html: '<nav><ul><li><a href="#">Link</a></li></ul></nav>'
+    expected:
+      html: '<nav><ul><li><a href="#">Link</a></li></ul></nav>'
+
+  - id: GET_LINK_DENSITY_CONCEPTUAL
+    target: "navigation_utils.get_link_density"
+    description: "Conceptual test for the non-mutating function `get_link_density`. Verifies no DOM change occurs."
+    input:
+      html: '<p>Some text with a <a href="#">link</a>.</p>'
+    expected:
+      html: '<p>Some text with a <a href="#">link</a>.</p>'
+
+  - id: IS_TOC_ELEMENT_CONCEPTUAL
+    target: "navigation_utils.is_toc_element"
+    description: "Conceptual test for the non-mutating function `is_toc_element`. Verifies no DOM change occurs."
+    input:
+      html: '<div role="doc-toc"><h2>Contents</h2><ul><li><a href="#">Chapter 1</a></li></ul></div>'
+    expected:
+      html: '<div role="doc-toc"><h2>Contents</h2><ul><li><a href="#">Chapter 1</a></li></ul></div>'

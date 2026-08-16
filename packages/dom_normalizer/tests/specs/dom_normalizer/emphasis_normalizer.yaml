@@ -1,0 +1,165 @@
+# File: tests/specs/dom_normalizer/emphasis_normalizer.yaml
+package: emphasis_normalizer
+dependencies: ["core"]
+pipeline_position: 2
+test_cases:
+  - id: "INITIAL_STATE_TELEMETRY"
+    target: "__init__"
+    description: "Verifies that telemetry counters are initialized to zero."
+    input:
+      html: "<body><p>Initial state check.</p></body>"
+    expected:
+      html: "<body><p>Initial state check.</p></body>"
+      telemetry:
+        italic_nodes_normalized: 0
+        bold_nodes_normalized: 0
+        semantic_resets_triggered: 0
+        nesting_fixes_count: 0
+        contrastive_detection_disabled: true
+
+  - id: "LIFECYCLE_ISOLATION"
+    target: "Instance Lifecycle"
+    description: "Verifies instance is scoped to a single book (conceptual test)."
+    input:
+      html: "<body><p>This test conceptually verifies instance isolation.</p></body>"
+    expected:
+      html: "<body><p>This test conceptually verifies instance isolation.</p></body>"
+
+  - id: "PROCESS_EXECUTION_ORDER"
+    target: "process (Execution Order)"
+    description: "Verifies the strict execution order of internal methods."
+    input:
+      html: "<body><p><em><strong>Nested and flattened</strong></em></p></body>"
+    expected:
+      html: "<body><p><i><b>Nested and flattened</b></i></p></body>"
+      telemetry:
+        italic_nodes_normalized: 1
+        bold_nodes_normalized: 1
+
+  - id: "PROCESS_IMMUNITY_PROTOCOL"
+    target: "process (Immunity Protocol)"
+    description: "Verifies processing is aborted if the document is a code block."
+    context:
+      is_code_block: true
+    input:
+      html: "<body><p><em>text</em></p></body>"
+    expected:
+      html: "<body><p><em>text</em></p></body>"
+      telemetry:
+        italic_nodes_normalized: 0
+        status: "idle"
+
+  - id: "CONVERT_EM_TO_I"
+    target: "_normalize_native_tags (em)"
+    description: "Verifies that <em> tags are converted to <i> tags."
+    input:
+      html: "<body><p>This is <em>italic</em>.</p></body>"
+    expected:
+      html: "<body><p>This is <i>italic</i>.</p></body>"
+      telemetry:
+        italic_nodes_normalized: 1
+
+  - id: "CONVERT_STRONG_TO_B"
+    target: "_normalize_native_tags (strong)"
+    description: "Verifies that <strong> tags are converted to <b> tags."
+    input:
+      html: "<body><p>This is <strong>bold</strong>.</p></body>"
+    expected:
+      html: "<body><p>This is <b>bold</b>.</p></body>"
+      telemetry:
+        bold_nodes_normalized: 1
+
+  - id: "FLATTEN_REDUNDANT_NESTING"
+    target: "_normalize_native_tags (flatten)"
+    description: "Verifies that redundant nested emphasis tags are flattened."
+    input:
+      html: "<body><p><i><i>italic</i></i> and <b><b>bold</b></b></p></body>"
+    expected:
+      html: "<body><p><i>italic</i> and <b>bold</b></p></body>"
+
+  - id: "STATE_PROPAGATION"
+    target: "_traverse_with_emphasis_state (State Propagation)"
+    description: "Verifies that emphasis state is inherited by all descendants."
+    input:
+      html: "<body><i><p>A paragraph with <b>bold</b> text.</p></i></body>"
+    expected:
+      html: "<body><i><p>A paragraph with <b>bold</b> text.</p></i></body>"
+
+  - id: "SEMANTIC_RESET"
+    target: "_traverse_with_emphasis_state (Semantic Reset)"
+    description: "Verifies a 'Semantic Reset' for contrastive text in an italic+bold state."
+    context:
+      is_contrastive_element_ids: ["contrastive"] # Assumes test runner mock extension
+      enable_contrastive_emphasis: true
+    input:
+      html: '<body><i><b>before <span id="contrastive">contrastive</span> after</b></i></body>'
+    expected:
+      html: '<body><i><b>before</b></i><span id="contrastive">contrastive</span><i><b>after</b></i></body>'
+    telemetry:
+      semantic_resets_triggered: 1
+
+  - id: "AVOID_REDUNDANT_WRAPPERS"
+    target: "_wrap_text_node_with_emphasis"
+    description: "Verifies that redundant wrappers are not created if the parent already has the same emphasis."
+    input:
+      html: "<body><p><i>italic text</i></p></body>"
+    expected:
+      html: "<body><p><i>italic text</i></p></body>"
+      telemetry:
+        italic_nodes_normalized: 0
+
+  - id: "ENSURE_CANONICAL_NESTING"
+    target: "_ensure_canonical_nesting"
+    description: "Verifies that non-canonical <b><i>...</i></b> nesting is swapped to <i><b>...</b></i>."
+    input:
+      html: "<body><p>This is <b><i>non-canonical</i></b>.</p></body>"
+    expected:
+      html: "<body><p>This is <i><b>non-canonical</b></i>.</p></body>"
+      telemetry:
+        nesting_fixes_count: 1
+
+  - id: "CLASS_BASED_ITALIC_EMPHASIS"
+    target: "_traverse_with_emphasis_state (Class-based italic)"
+    description: "Verifies that a <span> with a specific class is treated as italic."
+    context:
+      is_italic_element_classes: ["custom-italic"]
+    input:
+      html: '<body><p><span class="custom-italic">text</span></p></body>'
+    expected:
+      html: '<body><p><i><span class="custom-italic">text</span></i></p></body>'
+      telemetry:
+        italic_nodes_normalized: 1
+        bold_nodes_normalized: 0
+        semantic_resets_triggered: 0
+        nesting_fixes_count: 0
+
+  - id: "CLASS_BASED_BOLD_EMPHASIS"
+    target: "_traverse_with_emphasis_state (Class-based bold)"
+    description: "Verifies that a <span> with a specific class is treated as bold."
+    context:
+      is_bold_element_classes: ["custom-bold"]
+    input:
+      html: '<body><p><span class="custom-bold">text</span></p></body>'
+    expected:
+      html: '<body><p><b><span class="custom-bold">text</span></b></p></body>'
+      telemetry:
+        italic_nodes_normalized: 0
+        bold_nodes_normalized: 1
+        semantic_resets_triggered: 0
+        nesting_fixes_count: 0
+
+  - id: "CLASS_BASED_COMBINED_EMPHASIS"
+    target: "_traverse_with_emphasis_state (Class-based combined)"
+    description: "Verifies that a <span> with both italic and bold classes is treated as combined emphasis."
+    context:
+      is_italic_element_classes: ["custom-italic"]
+      is_bold_element_classes: ["custom-bold"]
+    input:
+      html: '<body><p><span class="custom-italic custom-bold">text</span></p></body>'
+    expected:
+      html: '<body><p><i><b><span class="custom-italic custom-bold">text</span></b></i></p></body>'
+    telemetry:
+      italic_nodes_normalized: 1
+      bold_nodes_normalized: 1
+      semantic_resets_triggered: 0
+      nesting_fixes_count: 0

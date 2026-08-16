@@ -1,0 +1,129 @@
+{
+    "StandardEbooks": {
+        "matching_mode": "container",
+        "container": {
+            "tag": "blockquote",
+            "attrs": {
+                "epub:type": "z3998:poem"
+            }
+        },
+        "line": {
+            "tag": "span",
+            "class_prefix": "i"
+        },
+        "stanza": {
+            "tag": "p",
+            "class_prefix": null
+        },
+        "example": "<blockquote epub:type=\"z3998:poem\"><p><span class=\"i1\">Canta, oh musa...</span></p></blockquote>"
+    },
+    "Library_Of_America": {
+        "matching_mode": "table",
+        "container": {
+            "tag": "table",
+            "attrs": {
+                "class": [
+                    "poem_table"
+                ]
+            }
+        },
+        "row": {
+            "tag": "tr"
+        },
+        "cell": {
+            "tag": "td"
+        },
+        "example": "<table class=\"poem_table\"><tr><td>Este es un verso de una tabla</td></tr></table>"
+    },
+    "Penguin_Planeta_Corporate": {
+        "matching_mode": "container",
+        "container": {
+            "tag": "div",
+            "class_prefix": "Layout-Poetry"
+        },
+        "line": {
+            "tag": "p",
+            "class_prefix": "verso"
+        },
+        "stanza": {
+            "tag": "div",
+            "class_prefix": "estrofa"
+        },
+        "example": "<div class=\"Layout-Poetry-Modern\"><p class=\"verso\">Silenciosa la noche avanza...</p></div>"
+    },
+    "EpubLibre": {
+        "matching_mode": "container",
+        "container": {
+            "tag": "div",
+            "class_prefix": "poema"
+        },
+        "line": {
+            "tag": "p",
+            "class_prefix": "verso"
+        },
+        "stanza": {
+            "tag": "div",
+            "class_prefix": "estrofa"
+        },
+        "example": "<div class=\"poema_custom\"><div class=\"estrofa\"><p class=\"verso\">Canta, oh musa...</p></div></div>"
+    },
+    "Calibre_Auto": {
+        "matching_mode": "separator",
+        "container": {
+            "tag": "p",
+            "class_prefix": "calibre_poetry"
+        },
+        "line_separator": {
+            "tag": "br"
+        },
+        "example": "<p class=\"calibre_poetry_variant\">Línea uno de calibre<br/>Línea dos de calibre</p>"
+    },
+    "clase_corrupta_modificada": {
+        "container": {
+            "tag": "table",
+            "attrs": {
+                "class": "clase_corrupta_modificada"
+            }
+        },
+        "matching_mode": "table",
+        "cell": {
+            "tag": "td",
+            "attrs": {}
+        }
+    },
+    "estrofa": {
+        "container": {
+            "tag": "div",
+            "attrs": {
+                "class": "estrofa"
+            }
+        },
+        "matching_mode": "container",
+        "line": {
+            "tag": "p",
+            "attrs": {
+                "class": "verso"
+            }
+        }
+    },
+    "div-d7517139": {
+        "container": {
+            "tag": "div",
+            "attrs": {}
+        },
+        "matching_mode": "container",
+        "line": {
+            "tag": "p",
+            "attrs": {}
+        }
+    },
+    "clase-borrada": {
+        "container": {
+            "tag": "p",
+            "attrs": {
+                "class": "clase-borrada"
+            }
+        },
+        "matching_mode": "separator"
+    }
+}

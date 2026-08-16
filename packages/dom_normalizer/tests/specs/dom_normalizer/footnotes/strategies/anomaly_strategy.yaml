@@ -1,0 +1,44 @@
+# File: tests/specs/dom_normalizer/footnotes/strategies/anomaly_strategy.yaml
+package: footnotes
+dependencies: ["core"]
+# pipeline_position is not applicable for a single strategy test.
+test_cases:
+  - id: INLINE_NOTE_CONVERSION
+    target: "AnomalyStrategy.process - Inline Notes"
+    description: "Verifies an inline note in a <small> tag is extracted and converted to a canonical footnote."
+    input:
+      html: '<body><p>Text with <small style="vertical-align: super;">1. Anomaly note.</small> inside.</p></body>'
+    expected:
+      html: '<body><p>Text with <a href="#fn-anomaly-inline-1" id="fnref-anomaly-inline-1" role="doc-noteref">1</a> inside.</p><section role="doc-endnotes"><ol><li id="fn-anomaly-inline-1" role="doc-endnote"><p>Anomaly note. <a class="footnote-backref" href="#fnref-anomaly-inline-1" role="doc-backlink">↩</a></p></li></ol></section></body>'
+
+  - id: FLAT_TEXT_NOTE_CONVERSION
+    target: "AnomalyStrategy.process - Flat-Text Notes"
+    description: "Verifies a flat-text note (e.g., [1] Text) at the end of a document is converted and linked."
+    input:
+      html: "<body><p>See note [1].</p><p>[1] This is a flat note.</p></body>"
+    expected:
+      html: '<body><p>See note <a role="doc-noteref" href="#fn-flat-1">[1]</a>.</p><section role="doc-endnotes"><ol><li id="fn-flat-1" role="doc-endnote">This is a flat note.</li></ol></section></body>'
+
+  - id: OCR_BLOCK_REPAIR
+    target: "AnomalyStrategy.process - OCR Blocks"
+    description: "Verifies an absolutely positioned OCR block has its positioning stripped and is moved to the end of the body."
+    input:
+      html: '<body><div class="ocr" data-ocr-block="true" style="position:absolute; top:10px;">OCR text</div><p>Some text.</p></body>'
+    expected:
+      html: '<body><div class="ocr" data-ocr-block="true">OCR text</div><p>Some text.</p></body>'
+
+  - id: DANGLING_REF_SANITIZATION
+    target: "AnomalyStrategy.process - Dangling Refs"
+    description: "Verifies a dangling reference is converted to a <span> when another anomaly triggers the strategy."
+    input:
+      html: '<body><p>A <a href="#nonexistent">broken link</a>.</p><div class="ocr" data-ocr-block="true" style="position:absolute;">Trigger</div></body>'
+    expected:
+      html: '<body><p>A <a class="broken-link">broken link</a>.</p><div class="ocr" data-ocr-block="true">Trigger</div></body>'
+
+  - id: NO_ANOMALIES_IDLE_RUN
+    target: "AnomalyStrategy.can_process"
+    description: "Verifies the strategy remains idle and makes no changes when no anomalies are found."
+    input:
+      html: "<body><p>A clean paragraph with no anomalies.</p></body>"
+    expected:
+      html: "<body><p>A clean paragraph with no anomalies.</p></body>"

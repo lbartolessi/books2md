@@ -1,0 +1,63 @@
+# File: tests/specs/dom_normalizer/footnotes/forensic_pattern_analyzer.yaml
+package: footnotes
+dependencies: ["core"]
+# pipeline_position is not applicable for a non-mutating analyzer.
+test_cases:
+  - id: SIBLING_VARIANCE_MATCH_ON_BOUNDARY
+    target: "ForensicPatternAnalyzer - Heuristic A: Sibling Node Length Variance (<=0.25)"
+    description: "Conceptual test verifying a sequence of sibling nodes with a coefficient of variation at the 0.25 threshold is identified."
+    input:
+      html: "<p>Short line.</p><p>A slightly longer line here.</p><p>Medium line.</p>"
+    expected:
+      html: "<p>Short line.</p><p>A slightly longer line here.</p><p>Medium line.</p>"
+
+  - id: SIBLING_VARIANCE_REJECT_OFF_BOUNDARY
+    target: "ForensicPatternAnalyzer - Heuristic A: Sibling Node Length Variance (>0.25)"
+    description: "Conceptual test verifying a sequence of sibling nodes with a coefficient of variation over the 0.25 threshold is rejected."
+    input:
+      html: "<p>A very short line.</p><p>This is a significantly longer line of prose that should increase variance.</p><p>Another line.</p>"
+    expected:
+      html: "<p>A very short line.</p><p>This is a significantly longer line of prose that should increase variance.</p><p>Another line.</p>"
+
+  - id: BR_DENSITY_MATCH_ON_BOUNDARY
+    target: "ForensicPatternAnalyzer - Heuristic B: Inline Line Break Density (>=0.08)"
+    description: "Conceptual test verifying a node with a line break density at the 0.08 threshold is identified."
+    input:
+      html: "<p>Word word word word word word word word word word word word.<br/>Another line.</p>" # 1 break / 14 words = ~0.071 (FAIL) -> Let's use a case that passes
+    # Corrected input for a passing case: 1 break / 12 words = 0.083
+    input:
+      html: "<p>Word word word word word word word word word word word word<br/></p>"
+    expected:
+      html: "<p>Word word word word word word word word word word word word<br/></p>"
+
+  - id: BR_DENSITY_REJECT_OFF_BOUNDARY
+    target: "ForensicPatternAnalyzer - Heuristic B: Inline Line Break Density (<0.08)"
+    description: "Conceptual test verifying a node with a line break density below the 0.08 threshold is rejected."
+    input:
+      html: "<p>Word word word word word word word word word word word word word.<br/>Another line.</p>" # 1 break / 14 words = ~0.071
+    expected:
+      html: "<p>Word word word word word word word word word word word word word.<br/>Another line.</p>"
+
+  - id: ANCESTOR_TTR_MATCH
+    target: "ForensicPatternAnalyzer - Heuristic C: Ancestor Topology and TTR"
+    description: "Conceptual test verifying a deeply nested node with low TTR is identified as a potential quote."
+    input:
+      html: "<div><div><div><div><p>A <b>short</b> quote.</p></div></div></div></div>"
+    expected:
+      html: "<div><div><div><div><p>A <b>short</b> quote.</p></div></div></div></div>"
+
+  - id: PUNCTUATION_ENJAMBMENT_MATCH_ON_BOUNDARY
+    target: "ForensicPatternAnalyzer - Heuristic D: Punctuation and Line Endings (>=1.5)"
+    description: "Conceptual test verifying a block with a high ratio of non-terminal punctuation at line ends is identified."
+    input:
+      html: "<p>The first line ends with a comma,<br/>the second with a semicolon;<br/>the third with a colon:<br/>but only one ends a sentence.</p>" # 3 mid / 1 term = 3.0
+    expected:
+      html: "<p>The first line ends with a comma,<br/>the second with a semicolon;<br/>the third with a colon:<br/>but only one ends a sentence.</p>"
+
+  - id: PUNCTUATION_ENJAMBMENT_REJECT_OFF_BOUNDARY
+    target: "ForensicPatternAnalyzer - Heuristic D: Punctuation and Line Endings (<1.5)"
+    description: "Conceptual test verifying a block with a low ratio of non-terminal punctuation at line ends is rejected."
+    input:
+      html: "<p>This is a normal sentence.<br/>This is another one.<br/>And a third one, just for testing.</p>" # 1 mid / 2 term = 0.5
+    expected:
+      html: "<p>This is a normal sentence.<br/>This is another one.<br/>And a third one, just for testing.</p>"

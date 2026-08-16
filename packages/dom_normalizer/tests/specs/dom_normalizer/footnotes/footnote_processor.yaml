@@ -1,0 +1,52 @@
+# File: tests/specs/dom_normalizer/footnotes/footnote_processor.yaml
+package: footnotes
+dependencies: ["core"]
+pipeline_position: 5
+test_cases:
+  - id: INITIAL_STATE_TELEMETRY
+    target: "FootnoteProcessor.__init__"
+    description: "Verifies that all footnote-related telemetry counters are initialized to zero."
+    input:
+      html: "<p>A document with no footnotes.</p>"
+    expected:
+      html: "<p>A document with no footnotes.</p>"
+      telemetry:
+        notes_found: 0
+        notes_rebuilt: 0
+        backlinks_injected: 0
+        anomalies_repaired: 0
+
+  - id: NATIVE_EPUB3_CONVERSION
+    target: "FootnoteProcessor.process - Stage 0: Native Convention"
+    description: "Verifies that native EPUB3 footnotes (epub:type='noteref') are correctly identified and moved to a canonical endnotes section with backlinks."
+    input:
+      html: '<body><p>Text with a note<sup class="footnote-ref"><a epub:type="noteref" href="#fn1">1</a></sup>.</p><aside epub:type="footnote" id="fn1"><p>This is the note.</p></aside></body>'
+    expected:
+      html: '<body><p>Text with a note<sup class="footnote-ref"><a href="#fn-1" id="fnref-1" role="doc-noteref">1</a></sup>.</p><section role="doc-endnotes"><ol><li id="fn-1" role="doc-endnote"><p>This is the note. <a class="footnote-backref" href="#fnref-1" role="doc-backlink">↩</a></p></li></ol></section></body>'
+      telemetry:
+        notes_found: 1
+        notes_rebuilt: 1
+        backlinks_injected: 1
+
+  - id: ANOMALY_INLINE_NOTE_CONVERSION
+    target: "FootnoteProcessor.process - Stage C: Anomaly Containment"
+    description: "Verifies an inline note formatted with a non-standard tag (e.g., <small>) is extracted and converted into a proper footnote."
+    input:
+      html: '<body><p>Some text with an inline note <small style="vertical-align: super;">2. This is an anomaly.</small></p></body>'
+    expected:
+      html: '<body><p>Some text with an inline note <a href="#fn-anomaly-inline-1" id="fnref-anomaly-inline-1" role="doc-noteref">2</a></p><section role="doc-endnotes"><ol><li id="fn-anomaly-inline-1" role="doc-endnote"><p>This is an anomaly. <a class="footnote-backref" href="#fnref-anomaly-inline-1" role="doc-backlink">↩</a></p></li></ol></section></body>'
+      telemetry:
+        notes_found: 1
+        anomalies_repaired: 1
+        notes_rebuilt: 1
+
+  - id: IDEMPOTENCY_GUARANTEE
+    target: "FootnoteProcessor.process - Rule: Idempotency"
+    description: "Verifies that running the processor on a document with already-normalized footnotes results in no changes."
+    input:
+      html: '<body><p>Text with a note<sup class="footnote-ref"><a href="#fn-1" id="fnref-1" role="doc-noteref">1</a></sup>.</p><section role="doc-endnotes"><ol><li id="fn-1" role="doc-endnote"><p>This is the note. <a href="#fnref-1" role="doc-backlink">↩</a></p></li></ol></section></body>'
+    expected:
+      html: '<body><p>Text with a note<sup class="footnote-ref"><a href="#fn-1" id="fnref-1" role="doc-noteref">1</a></sup>.</p><section role="doc-endnotes"><ol><li id="fn-1" role="doc-endnote"><p>This is the note. <a href="#fnref-1" role="doc-backlink">↩</a></p></li></ol></section></body>'
+      telemetry:
+        notes_found: 0
+        notes_rebuilt: 0

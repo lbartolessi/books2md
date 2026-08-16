@@ -1,0 +1,20 @@
+# File: tests/specs/dom_normalizer/core/config.yaml
+package: core
+dependencies: []
+# pipeline_position is not applicable for a configuration object.
+test_cases:
+  - id: DEFAULT_INITIALIZATION
+    target: "EngineConfiguration.__init__"
+    description: "Verifies that EngineConfiguration can be initialized with default values. This is a no-op test as the config object itself does not mutate the DOM."
+    input:
+      html: "<p>Sample content.</p>"
+    expected:
+      html: "<p>Sample content.</p>"
+
+  - id: IMMUTABILITY_CHECK
+    target: "EngineConfiguration - Rule: Immutability"
+    description: "Conceptually verifies the immutability of the configuration. This is a no-op test as immutability is enforced by Python's @dataclass(frozen=True) and cannot be tested via DOM mutation."
+    input:
+      html: "<p>Sample content.</p>"
+    expected:
+      html: "<p>Sample content.</p>"

@@ -1,0 +1,7 @@
+{
+  "folders": [
+    { "path": "." },
+    { "path": "packages/dom_normalizer" },
+    { "path": "packages/md_normalizer" }
+  ]
+}

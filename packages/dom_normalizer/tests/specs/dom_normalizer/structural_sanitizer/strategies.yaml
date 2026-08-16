@@ -1,0 +1,104 @@
+# File: tests/specs/dom_normalizer/structural_sanitizer/strategies.yaml
+package: structural_sanitizer
+dependencies: ["core"]
+pipeline_position: 1
+test_cases:
+  - id: PROMOTE_FLOAT_STYLE
+    target: "InlineStylePromotionStrategy._step1_inline_float_fingerprinting"
+    description: "Verifies that an inline `float` style is promoted to a `floating-element` class."
+    input:
+      html: '<div style="float: left; color: red;">Content</div>'
+    expected:
+      html: '<div class="floating-element" style="color: red;">Content</div>'
+      telemetry:
+        inline_floats_normalized: 1
+
+  - id: PROMOTE_INDENT_STYLE
+    target: "InlineStylePromotionStrategy._step2_structural_indentation_promotion"
+    description: "Verifies that an inline `margin-left` style is promoted to a `blockquote-element` class."
+    input:
+      html: '<p style="margin-left: 3em; font-weight: bold;">Indented paragraph.</p>'
+    expected:
+      html: '<p class="blockquote-element" style="font-weight: bold;">Indented paragraph.</p>'
+      telemetry:
+        inline_indents_normalized: 1
+
+  - id: PURGE_LEGACY_ATTRIBUTES
+    target: "AttributePurgeStrategy._purge_legacy_attributes"
+    description: "Verifies that legacy presentational attributes like `align` are purged and persisted."
+    input:
+      html: '<p align="right" id="p1">Aligned text.</p>'
+    expected:
+      html: '<p data-orig-align="right" id="p1">Aligned text.</p>'
+      telemetry:
+        layout_attributes_persisted: 1
+
+  - id: PURGE_PROMOTED_LAYOUT_STYLES
+    target: "AttributePurgeStrategy._purge_layout_styles"
+    description: "Verifies that layout-related inline styles are purged from non-promoted nodes."
+    input:
+      html: '<div style="background-color: red; border: 1px solid black;">A div with layout styles.</div>'
+    expected:
+      html: '<div style="border: 1px solid black;">A div with layout styles.</div>'
+
+  - id: ENFORCE_CLASS_ORDER
+    target: "AttributePurgeStrategy._enforce_class_order"
+    description: "Verifies that CSS classes on a node are sorted according to the specified key."
+    input:
+      html: '<div class="zeta floating-element alpha blockquote-element gamma">Content</div>'
+    expected:
+      html: '<div class="blockquote-element floating-element alpha gamma zeta">Content</div>'
+
+  - id: COLLAPSE_BR_IN_PROSE
+    target: "BrCollapseStrategy.process"
+    description: "Verifies that a <br> tag within a standard prose paragraph is collapsed into a space."
+    input:
+      html: "<p>This is the first part of the sentence.<br/>This is the second part.</p>"
+    expected:
+      html: "<p>This is the first part of the sentence. This is the second part.</p>"
+      telemetry:
+        br_tags_collapsed: 1
+
+  - id: PRESERVE_BR_IN_POETRY
+    target: "BrCollapseStrategy.process"
+    description: "Verifies that a <br> tag within a poetic context (e.g., a poetry-block) is preserved."
+    input:
+      html: '<div class="poetic-block">The first line,<br/>and the second.</div>'
+    expected:
+      html: '<div class="poetic-block">The first line,<br/>and the second.</div>'
+      telemetry:
+        poetic_br_tags_preserved: 1
+
+  - id: EPILOGUE_PURGE_TRACKING_ATTRIBUTES
+    target: "EpilogueStrategy._epilogue_remove_tracking_attrs"
+    description: "Verifies that temporary tracking attributes like `data-dn-indent-level` are purged in the epilogue."
+    input:
+      html: '<p class="blockquote-element" data-dn-indent-level="2" data-bq-promoted="1">Indented text.</p>'
+    expected:
+      html: '<p class="blockquote-element">Indented text.</p>'
+
+  - id: EPILOGUE_STRIP_BLOCKQUOTE_STYLES
+    target: "EpilogueStrategy._epilogue_strip_blockquote_indent_styles"
+    description: "Verifies that all layout-related styles are stripped from blockquotes that were promoted."
+    input:
+      html: '<blockquote class="blockquote-element" data-bq-promoted="1" style="margin: 1em; padding: 1em; border: 1px solid red;">A quote.</blockquote>'
+    expected:
+      html: '<blockquote class="blockquote-element" style="border: 1px solid red;">A quote.</blockquote>'
+
+  - id: EPILOGUE_PURGE_EMPTY_NODES
+    target: "EpilogueStrategy._epilogue_purge_empty_nodes"
+    description: "Verifies that structurally empty nodes (e.g., a <p> with only whitespace) are purged."
+    input:
+      html: "<body><p>Some text.</p><p>   </p><p>More text.</p></body>"
+    expected:
+      html: "<body><p>Some text.</p><p>More text.</p></body>"
+      telemetry:
+        empty_nodes_purged: 1
+
+  - id: EPILOGUE_COALESCE_TEXT_NODES
+    target: "EpilogueStrategy._epilogue_coalesce_text_nodes"
+    description: "Verifies that adjacent text nodes within the same parent are merged into a single node."
+    input:
+      html: "<p>First part, and second part.</p>"
+    expected:
+      html: "<p>First part, and second part.</p>"

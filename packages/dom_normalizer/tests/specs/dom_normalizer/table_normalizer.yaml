@@ -1,0 +1,88 @@
+# File: tests/specs/dom_normalizer/table_normalizer.yaml
+package: table_normalizer
+dependencies: ["core"]
+pipeline_position: 3
+test_cases:
+  # --- Mutations ---
+  - id: CONVERT_DIV_BASED_TABLE
+    target: "div-based table conversion"
+    description: "Verifies that a common div-based table structure (passing row/col gates) is converted to a semantic <table>."
+    input:
+      html: |
+        <body>
+          <div class="table">
+            <div class="row"><div class="cell">Header 1</div><div class="cell">Header 2</div></div>
+            <div class="row"><div class="cell">Data 1</div><div class="cell">Data 2</div></div>
+          </div>
+        </body>
+    expected:
+      html: |
+        <body>
+          <table>
+            <thead><tr><th>Header 1</th><th>Header 2</th></tr></thead>
+            <tbody><tr><td>Data 1</td><td>Data 2</td></tr></tbody>
+          </table>
+        </body>
+      telemetry:
+        tables_recovered: 1
+
+  - id: INJECT_THEAD_TBODY_DEFAULT
+    target: "<thead> and <tbody> injection"
+    description: "Verifies that a table missing <thead> and <tbody> has them injected, with the first row becoming the header by default."
+    input:
+      html: "<body><table><tr><td>H1</td><td>H2</td></tr><tr><td>D1</td><td>D2</td></tr></table></body>"
+    expected:
+      html: "<body><table><thead><tr><th>H1</th><th>H2</th></tr></thead><tbody><tr><td>D1</td><td>D2</td></tr></tbody></table></body>"
+      telemetry:
+        tables_repaired: 1
+
+  - id: PROMOTE_HEADER_ROW_HEURISTIC
+    target: "Header row promotion heuristic (>50%)"
+    description: "Verifies the first row is promoted to <thead> with <th> cells if >50% of its cells are bold."
+    input:
+      html: "<body><table><tr><td><b>H1</b></td><td><b>H2</b></td><td>H3</td></tr><tr><td>D1</td><td>D2</td><td>D3</td></tr></table></body>"
+    expected:
+      html: "<body><table><thead><tr><th>H1</th><th>H2</th><th>H3</th></tr></thead><tbody><tr><td>D1</td><td>D2</td><td>D3</td></tr></tbody></table></body>"
+      telemetry:
+        tables_repaired: 1
+
+  # --- Rules & Limits ---
+  - id: CODE_SHIELD_PROTECTION
+    target: "Code Shield"
+    description: "Verifies that table-like structures inside <pre> or <code> are ignored."
+    input:
+      html: '<body><pre><code><div class="table"><div class="row"><div class="cell">Data</div></div></div></code></pre></body>'
+    expected:
+      html: '<body><pre><code><div class="table"><div class="row"><div class="cell">Data</div></div></div></code></pre></body>'
+      telemetry:
+        tables_recovered: 0
+
+  - id: IGNORE_MIN_ROW_GATE
+    target: "Minimum Row Gate (Off-Boundary: 1)"
+    description: "Verifies a div-table with only 1 row is not converted."
+    input:
+      html: '<body><div class="table"><div class="row"><div class="cell">C1</div><div class="cell">C2</div></div></div></body>'
+    expected:
+      html: '<body><div class="table"><div class="row"><div class="cell">C1</div><div class="cell">C2</div></div></div></body>'
+      telemetry:
+        tables_recovered: 0
+
+  - id: IGNORE_MIN_COL_GATE
+    target: "Minimum Column Gate (Off-Boundary: 1)"
+    description: "Verifies a div-table with only 1 column is not converted."
+    input:
+      html: '<body><div class="table"><div class="row"><div class="cell">R1</div></div><div class="row"><div class="cell">R2</div></div></div></body>'
+    expected:
+      html: '<body><div class="table"><div class="row"><div class="cell">R1</div></div><div class="row"><div class="cell">R2</div></div></div></body>'
+      telemetry:
+        tables_recovered: 0
+
+  - id: IGNORE_HEADER_PROMOTION_AT_BOUNDARY
+    target: "Header Promotion Heuristic (Boundary: <=50%)"
+    description: "Verifies a row with <=50% bold cells is not promoted to a header, but the table is still repaired."
+    input:
+      html: "<body><table><tr><td><b>H1</b></td><td>H2</td></tr><tr><td>D1</td><td>D2</td></tr></table></body>"
+    expected:
+      html: "<body><table><tbody><tr><td><b>H1</b></td><td>H2</td></tr><tr><td>D1</td><td>D2</td></tr></tbody></table></body>"
+      telemetry:
+        tables_repaired: 1

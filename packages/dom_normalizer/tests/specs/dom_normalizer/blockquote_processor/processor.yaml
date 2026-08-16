@@ -1,0 +1,53 @@
+# File: tests/specs/dom_normalizer/blockquote_processor/processor.yaml
+package: blockquote_processor
+dependencies: ["core"]
+pipeline_position: 4
+test_cases:
+  - id: INITIAL_STATE_TELEMETRY
+    target: "BlockquoteProcessor.__init__"
+    description: "Verifies that all strategy-related telemetry counters are initialized to zero."
+    input:
+      html: "<p>A document with no blockquote candidates.</p>"
+    expected:
+      html: "<p>A document with no blockquote candidates.</p>"
+      telemetry:
+        epigraphs_identified_count: 0
+        generic_quotes_created_count: 0
+        foreign_blocks_identified_count: 0
+
+  - id: CODE_SHIELD_IMMUNITY
+    target: "BlockquoteProcessor.process - Rule: Code Shield"
+    description: "Verifies that a potential blockquote candidate (e.g., an indented paragraph) is ignored if it is inside a code block."
+    input:
+      html: '<code><p style="margin-left: 2em;">This looks like a quote but is inside a code block.</p></code>'
+    expected:
+      html: '<code><p style="margin-left: 2em;">This looks like a quote but is inside a code block.</p></code>'
+      telemetry:
+        generic_quotes_created_count: 0
+        epigraphs_identified_count: 0
+
+  - id: IDEMPOTENCY_GUARANTEE
+    target: "BlockquoteProcessor.process - Rule: Idempotency"
+    description: "Verifies that running the processor on a document with an existing, valid blockquote results in no changes."
+    input:
+      html: "<blockquote><p>This is an existing blockquote.</p></blockquote>"
+    expected:
+      html: "<blockquote><p>This is an existing blockquote.</p></blockquote>"
+      telemetry:
+        generic_quotes_created_count: 0
+        epigraphs_identified_count: 0
+
+  - id: STRATEGY_PRIORITY_ORDER
+    target: "BlockquoteProcessor.process - Rule: Pipeline Order"
+    description: "Verifies that a higher-priority strategy (Epigraph) processes a node, preventing a lower-priority strategy (Poetic) from running on it."
+    input:
+      # This paragraph is short and right-aligned. It matches EpigraphStrategy (P1)
+      # and could also match PoeticQuoteStrategy (P2) due to its short length.
+      # EpigraphStrategy should win.
+      html: '<p style="text-align: right;">A short, right-aligned line.</p>'
+    expected:
+      # The output should be an epigraph, not a generic blockquote.
+      html: '<blockquote class="epigraph"><p style="text-align: right;">A short, right-aligned line.</p></blockquote>'
+      telemetry:
+        epigraphs_identified_count: 1
+        generic_quotes_created_count: 0 # PoeticQuoteStrategy should not have run.

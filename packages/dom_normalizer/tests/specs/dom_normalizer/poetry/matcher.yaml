@@ -1,0 +1,91 @@
+# File: tests/specs/dom_normalizer/poetry/matcher.yaml
+package: poetry
+dependencies: ["core"]
+pipeline_position: 5
+test_cases:
+  # --- HeuristicTableStrategy Tests ---
+  - id: TABLE_STRATEGY_MATCH
+    target: "HeuristicTableStrategy match"
+    description: "Verifies that a simple 2-column table is identified as poetry."
+    input:
+      html: "<blockquote><table><tbody><tr><td>Line 1</td><td>Line 2</td></tr><tr><td>Line 3</td><td>Line 4</td></tr></tbody></table></blockquote>"
+    expected:
+      html: '<blockquote><div class="poetry-block">Line 1<br/>Line 2<br/>Line 3<br/>Line 4</div></blockquote>'
+      telemetry:
+        detected_poems_count: 1
+
+  - id: TABLE_STRATEGY_REJECT_GEOMETRY
+    target: "HeuristicTableStrategy column boundary"
+    description: "Verifies a 3-column table is rejected (off-boundary for MAX_POETIC_TABLE_COLUMNS)."
+    input:
+      html: "<blockquote><table><tbody><tr><td>Cell 1</td><td>Cell 2</td><td>Cell 3</td></tr></tbody></table></blockquote>"
+    expected:
+      html: "<blockquote><table><tbody><tr><td>Cell 1</td><td>Cell 2</td><td>Cell 3</td></tr></tbody></table></blockquote>"
+      telemetry:
+        detected_poems_count: 0
+        geometric_rejections: 1
+
+  # --- HeuristicSeparatorStrategy Tests ---
+  - id: SEPARATOR_STRATEGY_REJECT_DIALOGUE
+    target: "HeuristicSeparatorStrategy dialogue guard"
+    description: "Verifies a separator-based block is rejected by the Dialogue Exclusion Guard due to speaker labels and dialogue dashes."
+    input:
+      html: "<blockquote><div>SPEAKER:<br/>This line is part of a dialogue.<br/>—So is this one.</div></blockquote>"
+    expected:
+      html: "<blockquote><div>SPEAKER:<br/>This line is part of a dialogue.<br/>—So is this one.</div></blockquote>"
+      telemetry:
+        dialogue_blocks_excluded: 1
+        detected_poems_count: 0
+
+  - id: SEPARATOR_STRATEGY_MATCH_DENSITY
+    target: "HeuristicSeparatorStrategy line density rule"
+    description: "Verifies a separator-based block with short lines (low density) is matched as poetry."
+    input:
+      html: "<blockquote><div>Short line<br/>Another one<br/>A third line</div></blockquote>"
+    expected:
+      html: '<blockquote><div class="poetry-block">Short line<br/>Another one<br/>A third line</div></blockquote>'
+      telemetry:
+        detected_poems_count: 1
+
+  - id: SEPARATOR_STRATEGY_MATCH_ENJAMBMENT
+    target: "HeuristicSeparatorStrategy enjambment rule"
+    description: "Verifies a separator-based block with high enjambment (no terminal punctuation) is matched as poetry."
+    input:
+      html: "<blockquote><div>This is a very long line with no punctuation<br/>And this is another one also with no punctuation<br/>The lack of periods or commas triggers the enjambment rule</div></blockquote>"
+    expected:
+      html: '<blockquote><div class="poetry-block">This is a very long line with no punctuation<br/>And this is another one also with no punctuation<br/>The lack of periods or commas triggers the enjambment rule</div></blockquote>'
+      telemetry:
+        detected_poems_count: 1
+
+  - id: SEPARATOR_STRATEGY_REJECT_GEOMETRY
+    target: "HeuristicSeparatorStrategy geometric mismatch"
+    description: "Verifies a prose-like separator block (high density, low enjambment) is rejected."
+    input:
+      html: "<blockquote><div>This is a very long line that ends with a period, so it is not enjambed.<br/>This is another very long line that also ends with a period, failing both geometric checks.</div></blockquote>"
+    expected:
+      html: "<blockquote><div>This is a very long line that ends with a period, so it is not enjambed.<br/>This is another very long line that also ends with a period, failing both geometric checks.</div></blockquote>"
+      telemetry:
+        geometric_rejections: 1
+        detected_poems_count: 0
+
+  # --- HeuristicParagraphContainerStrategy Tests ---
+  - id: PARAGRAPH_STRATEGY_MATCH
+    target: "HeuristicParagraphContainerStrategy match"
+    description: "Verifies a container with multiple short paragraphs is matched as poetry."
+    input:
+      html: "<blockquote><div><p>A short line.</p><p>Another short line.</p><p>A final short line.</p></div></blockquote>"
+    expected:
+      html: '<blockquote><div class="poetry-block">A short line.<br/>Another short line.<br/>A final short line.</div></blockquote>'
+      telemetry:
+        detected_poems_count: 1
+
+  - id: PARAGRAPH_STRATEGY_REJECT
+    target: "HeuristicParagraphContainerStrategy rejection"
+    description: "Verifies a container with long, prose-like paragraphs is rejected."
+    input:
+      html: "<blockquote><div><p>This is a very long paragraph of prose that should not be considered poetry by any of the heuristics because its length and structure are not poetic.</p><p>This is another long paragraph that continues the prose, making it very unlikely to be a poem.</p></div></blockquote>"
+    expected:
+      html: "<blockquote><div><p>This is a very long paragraph of prose that should not be considered poetry by any of the heuristics because its length and structure are not poetic.</p><p>This is another long paragraph that continues the prose, making it very unlikely to be a poem.</p></div></blockquote>"
+      telemetry:
+        detected_poems_count: 0
+        geometric_rejections: 1

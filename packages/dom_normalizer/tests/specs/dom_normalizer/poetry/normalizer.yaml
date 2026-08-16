@@ -1,0 +1,80 @@
+# File: tests/specs/dom_normalizer/poetry/normalizer.yaml
+package: poetry
+dependencies: ["core"]
+pipeline_position: 5
+test_cases:
+  - id: BLOCKQUOTE_WRAPPER_PRESERVED
+    target: "PoetryNormalizer.process"
+    description: "Verifies that when a poetic block is found inside a <blockquote>, the blockquote is preserved as a wrapper."
+    input:
+      html: "<blockquote><div>Line 1<br/>Line 2</div></blockquote>"
+    expected:
+      html: '<blockquote><div class="poetry-block">Line 1<br/>Line 2</div></blockquote>'
+      telemetry:
+        detected_poems_count: 1
+
+  - id: NON_BLOCKQUOTE_WRAPPER_REPLACED_HIGH_PRIORITY
+    target: "PoetryNormalizer.process"
+    description: "Verifies that in high-priority mode, a poetic <div> not in a blockquote is replaced by the poetry block."
+    context:
+      high_poetry_priority: true
+    input:
+      html: "<div><p>Line 1</p><p>Line 2</p></div>"
+    expected:
+      html: '<div class="poetry-block">Line 1<br/>Line 2</div>'
+      telemetry:
+        detected_poems_count: 1
+
+  - id: NON_BLOCKQUOTE_IGNORED_STANDARD_PRIORITY
+    target: "PoetryNormalizer.process"
+    description: "Verifies that in standard-priority mode, a poetic <div> not in a blockquote is ignored."
+    context:
+      high_poetry_priority: false
+    input:
+      html: "<div><p>Line 1</p><p>Line 2</p></div>"
+    expected:
+      html: "<div><p>Line 1</p><p>Line 2</p></div>"
+      telemetry:
+        detected_poems_count: 0
+
+  - id: INDENTATION_CONVERSION
+    target: "PoetryNormalizer.process"
+    description: "Verifies that CSS-based indentation is correctly converted to em-spaces in the final poetry block."
+    input:
+      html: '<blockquote><p style="margin-left: 2em;">Indented line.</p></blockquote>'
+    expected:
+      html: '<blockquote><div class="poetry-block"><span>  </span>Indented line.</div></blockquote>'
+      telemetry:
+        detected_poems_count: 1
+
+  - id: STANZA_BREAK_CONVERSION
+    target: "PoetryNormalizer.process"
+    description: "Verifies that an empty paragraph representing a stanza break is converted to a double <br> tag."
+    input:
+      html: "<blockquote><p>Line 1</p><p></p><p>Line 2</p></blockquote>"
+    expected:
+      html: '<blockquote><div class="poetry-block">Line 1<br/><br/>Line 2</div></blockquote>'
+      telemetry:
+        detected_poems_count: 1
+
+  - id: TELEMETRY_DIALOGUE_REJECTION
+    target: "PoetryNormalizer.process"
+    description: "Verifies that a dialogue-like structure is rejected and the dialogue_blocks_excluded counter is incremented."
+    input:
+      html: "<blockquote><p>SPEAKER: This is dialogue.</p><p>—So is this.</p></blockquote>"
+    expected:
+      html: "<blockquote><p>SPEAKER: This is dialogue.</p><p>—So is this.</p></blockquote>"
+      telemetry:
+        detected_poems_count: 0
+        dialogue_blocks_excluded: 1
+
+  - id: TELEMETRY_GEOMETRIC_REJECTION
+    target: "PoetryNormalizer.process"
+    description: "Verifies that a prose-like structure is rejected and the geometric_rejections counter is incremented."
+    input:
+      html: "<blockquote><p>This is a very long line of prose that should not be considered poetry by any of the heuristics because its length and structure are not poetic.</p></blockquote>"
+    expected:
+      html: "<blockquote><p>This is a very long line of prose that should not be considered poetry by any of the heuristics because its length and structure are not poetic.</p></blockquote>"
+      telemetry:
+        detected_poems_count: 0
+        geometric_rejections: 1
