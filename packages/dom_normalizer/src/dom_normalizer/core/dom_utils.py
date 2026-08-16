@@ -140,7 +140,7 @@ def _has_semantic_attributes(node: Tag) -> bool:
     )
 
 
-def is_ignorable_node(node: Any) -> bool:
+def is_ignorable_node(node: PageElement | str | None) -> bool:
     """Evaluates if a node is ignorable structural or whitespace noise.
 
     An ignorable node has no renderable content. This includes `None`, whitespace-only
@@ -171,15 +171,16 @@ def is_ignorable_node(node: Any) -> bool:
         normalized_text = normalize_whitespace(str(node))
         return not normalized_text or _is_page_marker_pattern(normalized_text)
 
-    # Handle BeautifulSoup Tags.
-    if isinstance(node, Tag):
+    # Handle BeautifulSoup Tags. `elif node:` is not specific enough for type
+    # checkers when the input can be a generic PageElement.
+    elif isinstance(node, Tag):
         if node.name == "br":
             return True
 
         if (
             node.name in _MEDIA_TAGS
             or _has_semantic_attributes(node)
-            or node.find(lambda tag: isinstance(tag, Tag) and tag.name in _MEDIA_TAGS)
+            or node.find(lambda tag: tag.name in _MEDIA_TAGS)
         ):
             return False
 
@@ -331,13 +332,13 @@ def coerce_class_list(class_attr: str | list[str] | None) -> list[str]:
         return []
 
     initial_list: list[str]
-    if isinstance(class_attr, str):
+    if isinstance(class_attr, str):  # pyright: ignore[reportUnnecessaryIsInstance]
         initial_list = class_attr.strip().split()
-    elif isinstance(class_attr, list):
+    elif isinstance(
+        class_attr, list
+    ):  # pyright: ignore[reportUnnecessaryIsInstance]
         # Filter to string items, strip them, and remove any empty results.
-        initial_list = [
-            s.strip() for s in class_attr if isinstance(s, str) and s.strip()
-        ]
+        initial_list = [s.strip() for s in class_attr if s.strip()]
     else:
         return []
 

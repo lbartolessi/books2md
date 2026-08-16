@@ -54,11 +54,11 @@ from dom_normalizer.core import BookStyleContext, PipelineStatus
 from dom_normalizer.core.dom_utils import clone_tag, get_utc_timestamp
 
 from .base_strategy import (
+    Anomaly,
+    AnomalyCollector,
     AnomalyKey,
     BaseFootnoteStrategy,
     FootnoteStrategyError,
-    _Anomaly,
-    _AnomalyCollector,
 )
 
 log = logging.getLogger(__name__)
@@ -211,7 +211,7 @@ class ParameterizedFootnoteStrategy(BaseFootnoteStrategy):
     def _load_and_validate_config(
         self,
         config_params: dict[str, Any],
-    ) -> "_PatternConfig":
+    ) -> _PatternConfig:
         """Loads and validates the strategy configuration, returning a structured object."""
         pattern_id = config_params.get("pattern_id")
         if not isinstance(pattern_id, str) or not pattern_id.strip():
@@ -310,7 +310,7 @@ class ParameterizedFootnoteStrategy(BaseFootnoteStrategy):
         self,
         current_soup: BeautifulSoup,
         all_soups: dict[str, BeautifulSoup] | None,
-        collector: "_AnomalyCollector",
+        collector: AnomalyCollector,
         current_soup_key: str,
     ) -> dict[str, BeautifulSoup]:
         """Determines which documents to search for note bodies based on topology."""
@@ -334,7 +334,7 @@ class ParameterizedFootnoteStrategy(BaseFootnoteStrategy):
     def _aggregate_note_bodies(
         self,
         soups_to_search: dict[str, BeautifulSoup],
-        collector: "_AnomalyCollector",
+        collector: AnomalyCollector,
         current_soup: BeautifulSoup,
     ) -> dict[str, Tag]:
         """Extracts note bodies from multiple soups, handling duplicates.
@@ -395,7 +395,7 @@ class ParameterizedFootnoteStrategy(BaseFootnoteStrategy):
     def _determine_status(
         self,
         notes_processed_count: int,
-        anomalies: list[_Anomaly],
+        anomalies: list[Anomaly],
     ) -> PipelineStatus:
         """Determines the final pipeline status based on processing results.
 
@@ -425,7 +425,7 @@ class ParameterizedFootnoteStrategy(BaseFootnoteStrategy):
         notes_found_count: int,
         notes_rebuilt_count: int,
         backlinks_injected_count: int,
-        collector: "_AnomalyCollector",
+        collector: AnomalyCollector,
         start_time: str,
     ) -> dict[str, Any]:
         """Constructs the standardized metadata payload for this strategy."""
@@ -443,7 +443,7 @@ class ParameterizedFootnoteStrategy(BaseFootnoteStrategy):
 
     def _collect_post_processing_anomalies(
         self,
-        collector: "_AnomalyCollector",
+        collector: AnomalyCollector,
         notes_count: int,
         note_bodies: dict[str, Tag],
         used_ids: set[str],
@@ -476,7 +476,7 @@ class ParameterizedFootnoteStrategy(BaseFootnoteStrategy):
         # 3. No notes were successfully processed.
         # 4. No malformed hrefs were detected (which would explain the failure).
         # This combination strongly suggests that the callout hrefs do not match
-        # the note body IDs, pointing to a selector mismatch.
+        # the note body IDs, pointing to a selector mismatch. # Anomaly is now public
         has_malformed_href = any(
             anomaly.key == AnomalyKey.MALFORMED_HREF for anomaly in collector.anomalies
         )
@@ -508,7 +508,7 @@ class ParameterizedFootnoteStrategy(BaseFootnoteStrategy):
         Returns:
             A tuple containing the mutated soup and a metadata dictionary.
         """
-        collector = _AnomalyCollector()
+        collector = AnomalyCollector()
         start_time = get_utc_timestamp()
 
         final_current_soup_key = current_soup_key
@@ -607,13 +607,12 @@ class ParameterizedFootnoteStrategy(BaseFootnoteStrategy):
         # pylint: disable=unused-argument
         try:
             return self._run_processing_workflow(soup, all_soups, current_soup_key)
-        except _ConfigurationError as e:
+        except _ConfigurationError:
             # Configuration-related errors (e.g., fail_on_donor_file_missing)
             # are logged as errors but not critical failures.
             log.exception(
-                "Configuration error in ParameterizedFootnoteStrategy.process for pattern %s: %s",
+                "Configuration error in ParameterizedFootnoteStrategy.process for pattern %s",
                 self.config_data.pattern_id,
-                e,
             )
             raise
         except Exception:  # Other unexpected runtime errors

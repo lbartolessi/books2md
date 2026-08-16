@@ -80,7 +80,7 @@ class _DemotionStrategy:
     to evaluate a heading against these thresholds.
     """
 
-    def __init__(self, hn_config: "_HeadingNormalizerConfig") -> None:
+    def __init__(self, hn_config: _HeadingNormalizerConfig) -> None:
         """Initializes the demotion strategy with the heading normalizer's configuration."""
         self.hn_config = hn_config
 
@@ -485,7 +485,7 @@ class _ClassPromotionHandler:
 
         selector = ", ".join(f".{c}" for c in self.class_to_level_map)
         for tag in tuple(soup.select(selector)):
-            if not isinstance(tag, Tag):
+            if not isinstance(tag, Tag): # pyright: ignore[reportUnnecessaryIsInstance]
                 continue
 
             if promotion_details := self._find_best_promotion_for_tag(tag):
@@ -691,10 +691,8 @@ class HeadingNormalizer:
         # Iterate over <b> and <strong> tags for performance, as they are less
         # common than <p> tags.
         for emphasis_tag in find_all_snapshot(soup, ["b", "strong"]):
-            if not isinstance(emphasis_tag, Tag):
-                continue
-
-            if self._is_valid_bold_promotion_candidate(emphasis_tag):
+            # The find_all_snapshot with tag names ensures this is a Tag.
+            if self._is_valid_bold_promotion_candidate(cast(Tag, emphasis_tag)):
                 # The candidate check ensures parent is a <p> tag.
                 p_tag = cast(Tag, emphasis_tag.parent)
                 p_tag.name = f"h{self.hn_config.bold_paragraph_target_level}"

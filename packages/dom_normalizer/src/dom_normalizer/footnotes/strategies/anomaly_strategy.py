@@ -51,7 +51,7 @@ import re
 from typing import Any
 
 from bs4 import BeautifulSoup, Tag
-from bs4.element import NavigableString, PageElement
+from bs4.element import NavigableString
 
 from dom_normalizer.core import BookStyleContext, PipelineStatus  # Keep this line
 from dom_normalizer.core.dom_utils import coerce_class_list, get_utc_timestamp
@@ -249,7 +249,7 @@ class AnomalyStrategy(BaseFootnoteStrategy):
                 )
                 soup.append(notes_section)
 
-        ol_tag = notes_section.find("ol")
+        ol_tag = notes_section.select_one("ol")
         if not ol_tag:
             ol_tag = soup.new_tag("ol")
             notes_section.append(ol_tag)
@@ -444,16 +444,10 @@ class AnomalyStrategy(BaseFootnoteStrategy):
         new_elements: list[str | Tag],
     ) -> None:
         """Replaces a node with a sequence of new elements."""
-        current_node: PageElement = original_node
-        for new_el in new_elements:
-            if new_el:
-                current_node.insert_after(new_el)
-                # After insertion, the new element becomes the next sibling. This
-                # is a robust way to get a reference to the new PageElement,
-                # resolving the type error where a 'str' could be assigned.
-                if current_node.next_sibling:
-                    current_node = current_node.next_sibling
-        original_node.decompose()
+        # The `replace_with` method can take multiple arguments and will
+        # replace the original node with the sequence of new nodes.
+        # We use the splat operator (*) to unpack the list.
+        original_node.replace_with(*new_elements)
 
     def _link_flat_note_callouts(
         self,

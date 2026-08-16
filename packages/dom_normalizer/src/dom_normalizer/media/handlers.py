@@ -124,12 +124,7 @@ class UnsupportedMediaHandler(BaseMediaHandler):
         # excluding obvious tracking/identifier-related keys to avoid leaking
         # sensitive metadata.
         for attr_name, attr_value in tag.attrs.items():
-            if not (
-                isinstance(attr_name, str)
-                and attr_name.startswith("data-")
-                and isinstance(attr_value, (str, int, float))
-                and str(attr_value).strip()
-            ):
+            if not (isinstance(attr_name, str) and attr_name.startswith("data-") and isinstance(attr_value, (str, int, float)) and str(attr_value).strip()): # pyright: ignore[reportUnnecessaryIsInstance]
                 continue
 
             # Whitelist descriptive attributes by prefix
@@ -167,7 +162,9 @@ class ExternalVideoHandler(BaseMediaHandler):
 
     def handle(self, tag: Tag, soup: BeautifulSoup, file_path: Path) -> bool:
         """Wraps the external video in a protected semantic block."""
-        # This logic is directly from the original _handle_external_video
+        # This logic is directly from the original _handle_external_video.
+        # The isinstance check is a necessary type guard, as tag.get() can
+        # return a list.
         src_attr = tag.get("src") or tag.get("data")
         if not isinstance(src_attr, str):
             return False
@@ -337,8 +334,8 @@ class LocalMediaHandler(BaseMediaHandler):
         This is used to avoid re-processing normalized paths during
         multi-pass runs over the same DOM or HTML.
         """
-        # Guard against non-string or empty values
-        if not isinstance(src_value, str) or not src_value:
+        # Guard against empty values
+        if not src_value:
             return False
 
         return next(

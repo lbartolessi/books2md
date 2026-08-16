@@ -212,7 +212,7 @@ class AccessibilityNormalizer:
         # scanning all role-bearing nodes on large documents.
         for node in tuple(
             soup.find_all(
-                role=lambda v: bool(v and "doc-pagebreak" in coerce_class_list(v)),
+                role=lambda v: bool(v and "doc-pagebreak" in coerce_class_list(v if isinstance(v, (str, list)) else None)),
             ),
         ):
             if self.context.is_inside_code_block(node):
@@ -265,7 +265,7 @@ class AccessibilityNormalizer:
         # scanning all role-bearing nodes on large documents.
         nodes_to_process = tuple(
             soup.find_all(
-                role=lambda v: bool(v and target_role in coerce_class_list(v)),
+                role=lambda v: bool(v and isinstance(v, str) and target_role in coerce_class_list(v)),
             ),
         )
         for node in nodes_to_process:

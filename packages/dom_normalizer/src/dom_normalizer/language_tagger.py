@@ -86,16 +86,14 @@ class LanguageTagger:
         # baseline context instead.
         has_language_declarations = soup.body and soup.body.find(
             lambda t: (
-                isinstance(t, Tag)
+                isinstance(t, Tag) # pyright: ignore[reportUnnecessaryIsInstance]
                 and (t.has_attr("lang") or t.has_attr(self._XML_LANG_ATTR))
             ),
         )
 
-        html_tag = soup.find("html")
+        html_tag = soup.select_one("html")
         if (
-            html_tag
-            and isinstance(html_tag, Tag)
-            and not html_tag.get("lang")
+            html_tag and not html_tag.get("lang")
             and not has_language_declarations
         ):
             html_tag["lang"] = self.context.primary_language
@@ -142,7 +140,7 @@ class LanguageTagger:
         if isinstance(lang_attr, list):
             # Take the first valid string from the list if the attribute is a list.
             lang_str = next(
-                (s for s in lang_attr if isinstance(s, str) and s.strip()),
+                (s for s in lang_attr if s.strip()),
                 None,
             )
         else:
@@ -232,7 +230,7 @@ class LanguageTagger:
         # If 'lang' is still missing and there are language shifts within, tag with parent_lang.
         has_descendant_lang = node.find(
             lambda t: (
-                isinstance(t, Tag)
+                isinstance(t, Tag) # pyright: ignore[reportUnnecessaryIsInstance]
                 and (t.has_attr("lang") or t.has_attr(self._XML_LANG_ATTR))
             ),
         )
@@ -280,7 +278,7 @@ class LanguageTagger:
             self.nodes_tagged += 1
 
         for child in snapshot_iterator(node.contents):
-            if isinstance(child, Tag):
+            if isinstance(child, Tag):  # pyright: ignore[reportUnnecessaryIsInstance]
                 self._traverse_and_tag(child, effective_lang_for_children)
 
     def get_metadata(self, status: PipelineStatus) -> Mapping[str, Any]:

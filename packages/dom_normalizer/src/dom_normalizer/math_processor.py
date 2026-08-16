@@ -59,13 +59,13 @@ log = logging.getLogger(__name__)
 
 # Conditional import of lxml for XSLT transformations.
 try:
-    _ETREE_MODULE = importlib.import_module("lxml.etree")
-    LXML_AVAILABLE = True
-    _LXML_ERROR_CLASS = _ETREE_MODULE.LxmlError
+    _etree_module = importlib.import_module("lxml.etree")
+    lxml_available = True
+    _lxml_error_class = _etree_module.LxmlError
 except ImportError:
-    LXML_AVAILABLE = False
-    _ETREE_MODULE = None  # Placeholder for type hinting
-    _LXML_ERROR_CLASS = Exception  # Fallback if lxml is not available
+    lxml_available = False
+    _etree_module = None  # Placeholder for type hinting
+    _lxml_error_class = Exception  # Fallback if lxml is not available
 
 _MATH_RELATED_TAGS: Final[frozenset[str]] = frozenset(
     {
@@ -145,7 +145,7 @@ class MathProcessor:
         self.context = context
         self.equations_converted: int = 0
         self.hybrid_blocks_created: int = 0
-        self.lxml_available = LXML_AVAILABLE
+        self.lxml_available = lxml_available
         # Indicates whether the MathML-to-LaTeX XSLT stylesheet is present and usable.
         self.xslt_available: bool = False
         self.xslt_transformer: Any | None = None
@@ -163,10 +163,10 @@ class MathProcessor:
             - bool: True if the transformer was successfully initialized, False otherwise.
             - Any | None: The compiled lxml.etree.XSLT object, or None on failure.
         """
-        if not (self.lxml_available and _ETREE_MODULE):
+        if not (self.lxml_available and _etree_module):
             return False, None
 
-        xslt_parse_error = getattr(_ETREE_MODULE, "XSLTParseError", OSError)
+        xslt_parse_error = getattr(_etree_module, "XSLTParseError", OSError)
         xslt_loading_exceptions = (FileNotFoundError, OSError)
         xslt_parsing_exceptions = (xslt_parse_error,)
         xslt_path: Path | None = None
@@ -180,9 +180,9 @@ class MathProcessor:
                 )
                 return False, None
 
-            parser = _ETREE_MODULE.XMLParser(resolve_entities=False, no_network=True)
-            xslt_doc = _ETREE_MODULE.parse(str(xslt_path), parser)
-            transformer = _ETREE_MODULE.XSLT(xslt_doc)
+            parser = _etree_module.XMLParser(resolve_entities=False, no_network=True)
+            xslt_doc = _etree_module.parse(str(xslt_path), parser)
+            transformer = _etree_module.XSLT(xslt_doc)
             return True, transformer
         except xslt_parsing_exceptions as e:
             log.critical(
@@ -235,11 +235,7 @@ class MathProcessor:
             if value := tag.get(attr):
                 if isinstance(value, list):
                     value = " ".join(str(v) for v in value)
-                if (
-                    isinstance(value, str)
-                    and (stripped := value.strip())
-                    and len(stripped) >= self.MIN_LATEX_LENGTH
-                ):
+                if (stripped := str(value).strip()) and len(stripped) >= self.MIN_LATEX_LENGTH:
                     return stripped, attr
         return None
 
@@ -321,15 +317,15 @@ class MathProcessor:
         Returns:
             An lxml element object if lxml is available, otherwise None.
         """
-        if not _ETREE_MODULE:
+        if not _etree_module:
             return None
         # Do NOT mutate the original BeautifulSoup math_tag with xmlns.
         # Instead, ensure the lxml element has the correct namespace for XSLT.
         mathml_str = str(bs4_tag)
-        parser = _ETREE_MODULE.XMLParser(resolve_entities=False, no_network=True)
+        parser = _etree_module.XMLParser(resolve_entities=False, no_network=True)
         # The fromstring call is intentionally not in a try-except block here,
         # as the calling method (_transform_mathml_to_latex) handles exceptions.
-        return _ETREE_MODULE.fromstring(mathml_str.encode("utf-8"), parser)
+        return _etree_module.fromstring(mathml_str.encode("utf-8"), parser)
 
     def _ensure_lxml_namespace(self, lxml_doc: Any) -> Any:
         """Ensures an lxml element has the MathML namespace for XSLT processing.
@@ -345,11 +341,11 @@ class MathProcessor:
             The lxml element, potentially a new one with the correct namespace.
         """
         if (
-            _ETREE_MODULE
+            _etree_module
             and lxml_doc.tag == "math"
             and lxml_doc.nsmap.get(None) != "http://www.w3.org/1998/Math/MathML"
         ):
-            new_lxml_doc = _ETREE_MODULE.Element(
+            new_lxml_doc = _etree_module.Element(
                 "{http://www.w3.org/1998/Math/MathML}math",
                 nsmap={None: "http://www.w3.org/1998/Math/MathML"},
                 attrib=lxml_doc.attrib,  # Preserve attributes
@@ -425,7 +421,7 @@ class MathProcessor:
             )
             latex_result = self.xslt_transformer(lxml_math_doc)  # type: ignore [operator]
             return str(latex_result).strip()
-        except _LXML_ERROR_CLASS as e:  # pylint: disable=broad-except
+        except _lxml_error_class as e:
             log.warning(
                 "lxml error during MathML to LaTeX transformation for tag '%s': %s",
                 str(math_tag)[:100],

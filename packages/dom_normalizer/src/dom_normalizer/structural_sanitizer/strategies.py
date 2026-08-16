@@ -207,7 +207,7 @@ class AttributePurgeStrategy(NodeStrategy):
 
     def _enforce_class_order(self, node: Tag) -> None:
         """Sorts a node's class list according to deterministic rules."""
-        if not isinstance(node, Tag) or not node.has_attr("class"):
+        if not node.has_attr("class"):
             return
 
         classes = coerce_class_list(node.get("class"))
@@ -264,12 +264,13 @@ class BrCollapseStrategy(NodeStrategy):
 
     def _has_poetic_semantic_class(self, node: Tag) -> bool:
         """Checks if a node or any of its ancestors has a poetic class."""
-        if not isinstance(node, Tag):
-            return False
-
         nodes_to_check = [node, *list(node.parents)]
         for current_node in nodes_to_check:
-            if isinstance(current_node, Tag) and current_node.has_attr("class"):
+            if isinstance(
+                current_node, Tag
+            ) and current_node.has_attr(  # pyright: ignore[reportUnnecessaryIsInstance]
+                "class",
+            ):
                 classes = coerce_class_list(current_node.get("class"))
                 for c in classes:
                     c_lower = c.lower()
@@ -295,9 +296,6 @@ class BrCollapseStrategy(NodeStrategy):
 
     def _is_poetic_by_metrics(self, node: Tag) -> bool:
         """Checks if a node's content is poetic based on textual metrics."""
-        if not isinstance(node, Tag):
-            return False
-
         br_tags = node.find_all("br")
         if len(br_tags) < self.min_br_for_poetic_metrics:
             return False
@@ -373,7 +371,7 @@ class EpilogueStrategy(DocumentStrategy):
         full_text = normalize_whitespace("".join(str(s) for s in string_nodes))
         anchor_node.replace_with(NavigableString(full_text))
         for node_to_remove in string_nodes[1:]:
-            node_to_remove.decompose()
+            node_to_remove.decompose()  # pyright: ignore[reportAttributeAccessIssue]
 
     def _coalesce_adjacent_text_nodes_in_parent(self, parent_node: Tag) -> None:
         """Merges adjacent NavigableString children within a given parent tag."""

@@ -93,7 +93,7 @@ class ReconstructionStrategy(BaseListStrategy):
 
     def _is_list_item_by_class(self, tag: Tag) -> bool:
         """Detects a list item based on vendor-specific class names."""
-        if not isinstance(tag, Tag) or not (class_attr := tag.get("class")):
+        if not (class_attr := tag.get("class")):
             return False
 
         for cls in coerce_class_list(class_attr):
@@ -106,7 +106,7 @@ class ReconstructionStrategy(BaseListStrategy):
 
     def _is_list_item(self, tag: Tag) -> bool:
         """Determines if a tag is a list item by any heuristic."""
-        if not isinstance(tag, Tag) or tag.name != "p":
+        if tag.name != "p":
             return False
 
         if self._is_list_item_by_class(tag):
@@ -125,7 +125,9 @@ class ReconstructionStrategy(BaseListStrategy):
             if is_ignorable_node(current_node):
                 continue
 
-            if not (isinstance(current_node, Tag) and current_node.name == "p"):
+            if not (
+                isinstance(current_node, Tag) and current_node.name == "p"
+            ):  # pyright: ignore[reportUnnecessaryIsInstance]
                 break
 
             if self._is_list_item(current_node):
@@ -455,7 +457,7 @@ class FusionStrategy(BaseListStrategy):
                 list_b_id = id(list_b)
                 self._perform_list_fusion(list_a, list_b, noise_to_remove)
                 if wrapper_to_remove:
-                    wrapper_to_remove.decompose()
+                    wrapper_to_remove.extract()
                 return list_b_id
 
             break
@@ -472,7 +474,7 @@ class FusionStrategy(BaseListStrategy):
         list_a.extend(list_b.find_all("li", recursive=False))
 
         for noise in noise_to_remove:
-            noise.decompose()
-        list_b.decompose()
+            noise.extract()
+        list_b.decompose()  # pyright: ignore[reportAttributeAccessIssue] # Tag.decompose is present at runtime
 
         self.processor.lists_fused += 1

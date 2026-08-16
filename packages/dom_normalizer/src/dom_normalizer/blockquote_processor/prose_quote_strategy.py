@@ -256,8 +256,7 @@ class ProseQuoteStrategy(BaseBlockquoteStrategy):
         node_iterator = start_node
         while True:
             prev_sibling = self._get_prev_non_ignorable_sibling(node_iterator)
-            if (
-                isinstance(prev_sibling, Tag)
+            if (prev_sibling
                 and prev_sibling.name in {"p", "div"}
                 and self._get_valid_indent_tuple(prev_sibling)
             ):
@@ -271,7 +270,6 @@ class ProseQuoteStrategy(BaseBlockquoteStrategy):
         node_iterator = first_node_in_sequence
         while (
             node_iterator
-            and isinstance(node_iterator, Tag)
             and node_iterator.name in {"p", "div"}
             and self._get_valid_indent_tuple(node_iterator)
         ):

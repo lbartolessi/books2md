@@ -44,7 +44,7 @@ Class Methods (TableNormalizer):
 
 import logging
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, cast
 
 from bs4 import BeautifulSoup, Tag
 from bs4.element import PageElement
@@ -307,10 +307,9 @@ class TableNormalizer:
 
     def _repair_native_tables(self, soup: BeautifulSoup) -> None:
         """Injects missing <thead>/<tbody> and promotes headers."""
-        for table in find_all_snapshot(soup, "table"):
-            if not isinstance(table, Tag) or self.context.is_inside_literal_code_tag(
-                table,
-            ):
+        for table_el in find_all_snapshot(soup, "table"):
+            table = cast(Tag, table_el)
+            if self.context.is_inside_literal_code_tag(table):
                 continue
 
             # Skip tables that already have a proper structure
@@ -320,7 +319,7 @@ class TableNormalizer:
             # Find rows, which might be in a parser-injected tbody
             tbody = table.find("tbody")
             row_container = tbody or table
-            rows = row_container.find_all("tr", recursive=False)
+            rows = cast(Tag, row_container).find_all("tr", recursive=False)
 
             if not rows:
                 continue
@@ -569,13 +568,17 @@ class TableNormalizer:
 
         # and extract all direct child rows from it.
         row_container_b = table_b.find("tbody") or table_b
+        if not isinstance(row_container_b, Tag):
+            # This case is highly unlikely but good to guard against.
+            return
         rows_to_move = row_container_b.find_all("tr", recursive=False)
 
         # Move the rows to table A and clean up.
         tbody_a.extend(rows_to_move)
 
         for noise in noise_elements:
-            noise.decompose()
+            # pyright has trouble with decompose on PageElement
+            noise.decompose()  # pyright: ignore[reportAttributeAccessIssue]
         table_b.decompose()
 
     def _count_table_columns(self, table: Tag) -> int:
@@ -600,4 +603,6 @@ class TableNormalizer:
               or `<tr>` by returning 0.
         """
         first_row = table.find("tr")
-        return len(first_row.find_all(["td", "th"])) if first_row else 0
+        if isinstance(first_row, Tag):
+            return len(first_row.find_all(["td", "th"]))
+        return 0

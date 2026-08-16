@@ -46,7 +46,7 @@ from bs4 import BeautifulSoup, Tag
 from dom_normalizer.core import BookStyleContext, PipelineStatus
 from dom_normalizer.core.dom_utils import get_utc_timestamp
 
-from .base_strategy import AnomalyKey, BaseFootnoteStrategy, _AnomalyCollector
+from .base_strategy import AnomalyCollector, AnomalyKey, BaseFootnoteStrategy
 
 log = logging.getLogger(__name__)
 
@@ -111,7 +111,7 @@ class AriaDpubStrategy(BaseFootnoteStrategy):
     def _extract_aria_note_bodies(
         self,
         soup: BeautifulSoup,
-        collector: "_AnomalyCollector",
+        collector: AnomalyCollector,
     ) -> dict[str, Tag]:
         """Extracts note bodies, filtering out any that are already in the canonical format."""
         note_bodies = {}
@@ -146,7 +146,7 @@ class AriaDpubStrategy(BaseFootnoteStrategy):
     def _run_processing_workflow(
         self,
         soup: BeautifulSoup,
-        collector: "_AnomalyCollector",
+        collector: AnomalyCollector,
         start_time: str,
     ) -> tuple[BeautifulSoup, dict[str, Any]]:
         """Orchestrates the main processing logic and returns final metadata."""
@@ -249,8 +249,8 @@ class AriaDpubStrategy(BaseFootnoteStrategy):
             - `get_utc_timestamp`: To record the execution time.
         """
         # pylint: disable=unused-argument
-        collector = _AnomalyCollector()
-        start_time = get_utc_timestamp()
+        collector = AnomalyCollector()
+        start_time = get_utc_timestamp() # AnomalyCollector is now public, so no need for _AnomalyCollector
 
         try:
             return self._run_processing_workflow(soup, collector, start_time)

@@ -208,7 +208,7 @@ class StructuralSanitizer:
                 self.inline_promoter.process(node)
                 self.attr_purger.process(node)
                 self.br_collapser.process(node)
-            except Exception as e:  # pylint: disable=broad-except
+            except Exception as e:  
                 if isinstance(e, (KeyboardInterrupt, SystemExit)):
                     raise
                 error_details = {
@@ -226,7 +226,7 @@ class StructuralSanitizer:
 
         try:
             self.epilogue.process(soup)
-        except Exception as e:  # pylint: disable=broad-except
+        except Exception as e:  
             if isinstance(e, (KeyboardInterrupt, SystemExit)):
                 raise
             self.errors.append({"node": "document_epilogue", "error": str(e)})

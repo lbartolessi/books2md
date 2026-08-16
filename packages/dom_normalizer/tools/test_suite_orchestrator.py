@@ -33,6 +33,7 @@ import json
 import sys
 from collections import defaultdict
 from pathlib import Path
+from typing import Any
 
 import requests
 
@@ -89,7 +90,7 @@ def call_ollama(
     model_alias: str,
     skill_prompt: str,
     target_payload: str,
-    model_map: dict | None = None,
+    model_map: dict[str, str] | None = None,
 ) -> str:
     """Performs the HTTP call to Ollama using the requests library.
 
@@ -165,7 +166,7 @@ def call_ollama(
         ) from e
 
 
-def _parse_function_def(node: ast.FunctionDef) -> dict:
+def _parse_function_def(node: ast.FunctionDef) -> dict[str, str]:
     """Parses a function definition node.
 
     Args:
@@ -182,7 +183,7 @@ def _parse_function_def(node: ast.FunctionDef) -> dict:
     }
 
 
-def _parse_class_def(node: ast.ClassDef) -> dict:
+def _parse_class_def(node: ast.ClassDef) -> dict[str, Any]:
     """Parses a class definition node, including its public methods.
 
     Args:
@@ -213,7 +214,7 @@ def _parse_class_def(node: ast.ClassDef) -> dict:
     }
 
 
-def get_public_definitions(py_path: Path) -> list:
+def get_public_definitions(py_path: Path) -> list[dict[str, Any]]:
     """Parses the AST of a .py file to extract public functions and methods.
 
     Args:
@@ -236,7 +237,7 @@ def get_public_definitions(py_path: Path) -> list:
     return definitions
 
 
-def _setup_pipeline_context(mode: str) -> dict:
+def _setup_pipeline_context(mode: str) -> dict[str, Any]:
     """Validates mode and loads all necessary configurations for the pipeline.
 
     Args:
@@ -278,7 +279,7 @@ def _setup_pipeline_context(mode: str) -> dict:
 
 def run_pipeline(
     mode: str = "R",
-    model_map: dict | None = None,
+    model_map: dict[str, str] | None = None,
 ):
     """Orchestrates the test suite generation based on the selected mode (R or M).
 
@@ -311,7 +312,9 @@ def run_pipeline(
         _process_model_group(model_alias, mods, context["skill_prompt"], model_map)
 
 
-def _collect_pending_modules(input_path: Path, output_path: Path, routes: dict) -> list:
+def _collect_pending_modules(
+    input_path: Path, output_path: Path, routes: dict[str, str]
+) -> list[dict[str, Any]]:
     """Collects modules that need test generation.
 
     Args:
@@ -345,7 +348,9 @@ def _collect_pending_modules(input_path: Path, output_path: Path, routes: dict) 
     return pending
 
 
-def _group_by_model(pending_modules: list) -> dict:
+def _group_by_model(
+    pending_modules: list[dict[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
     """Groups pending modules by their assigned model.
 
     Args:
@@ -362,10 +367,10 @@ def _group_by_model(pending_modules: list) -> dict:
 
 
 def _generate_yaml_for_module(
-    mod: dict,
+    mod: dict[str, Any],
     model_alias: str,
     skill_prompt: str,
-    model_map: dict | None,
+    model_map: dict[str, str] | None,
 ) -> str | None:
     """Generates the full YAML content for a single module, if possible.
 
@@ -409,9 +414,9 @@ def _generate_yaml_for_module(
 
 def _process_model_group(
     model_alias: str,
-    mods: list,
+    mods: list[dict[str, Any]],
     skill_prompt: str,
-    model_map: dict | None,
+    model_map: dict[str, str] | None,
 ) -> None:
     """Processes a group of modules with a specific model.
 

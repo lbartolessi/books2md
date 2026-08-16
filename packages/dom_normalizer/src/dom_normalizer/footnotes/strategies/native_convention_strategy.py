@@ -49,7 +49,7 @@ from dom_normalizer.core.dom_utils import (
     get_utc_timestamp,
 )
 
-from .base_strategy import AnomalyKey, BaseFootnoteStrategy, _normalize_href_attr
+from .base_strategy import AnomalyKey, BaseFootnoteStrategy, normalize_href_attr
 
 log = logging.getLogger(__name__)
 
@@ -151,7 +151,7 @@ class NativeConventionFootnoteStrategy(BaseFootnoteStrategy):
         if href_attr is None:
             # Fallback to plain href if xlink:href is not present
             href_attr = callout.get("href")
-        return _normalize_href_attr(href_attr)
+        return normalize_href_attr(href_attr)
 
     def _process_callout(
         self,
@@ -183,7 +183,7 @@ class NativeConventionFootnoteStrategy(BaseFootnoteStrategy):
             return False
 
         target_id = href[1:]
-        note_body = notes_soup.find(id=target_id)
+        note_body = notes_soup.select_one(f"#{target_id}")
 
         if not note_body:
             self.unresolved_targets.append(
@@ -312,7 +312,7 @@ class NativeConventionFootnoteStrategy(BaseFootnoteStrategy):
 
         anomalies_payload = [
             self._create_anomaly_entry(reason, href_val)
-            for reason, href_val, callout in self.unresolved_targets
+            for reason, href_val, _ in self.unresolved_targets
         ]
 
         notes_found_count = notes_count

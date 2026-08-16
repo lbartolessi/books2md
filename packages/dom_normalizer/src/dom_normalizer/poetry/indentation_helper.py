@@ -98,7 +98,9 @@ class PoetryIndentationHelper:
         direct_text_chunks: list[str] = []
         for child in line_node.contents:
             # Only consider direct text nodes; skip nested tags.
-            if isinstance(child, NavigableString):
+            if isinstance(
+                child, NavigableString
+            ):  # pyright: ignore[reportUnnecessaryIsInstance]
                 direct_text_chunks.append(str(child))
             else:
                 # Once we encounter the first non-text child, we stop collecting
@@ -207,7 +209,7 @@ class PoetryIndentationHelper:
         """Computes the DOM depth of a tag from its parent."""
         depth = 0
         parent = tag.parent
-        while parent is not None and isinstance(parent, Tag):
+        while parent is not None and isinstance(parent, Tag): # pyright: ignore[reportUnnecessaryIsInstance]
             depth += 1
             parent = parent.parent
         return depth

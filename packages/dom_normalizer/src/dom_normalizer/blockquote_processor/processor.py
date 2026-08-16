@@ -88,7 +88,7 @@ class BlockquoteProcessor:
             return bool(node.get_text(strip=True))
         return False
 
-    def process(self, soup: BeautifulSoup) -> tuple[BeautifulSoup, Mapping]:
+    def process(self, soup: BeautifulSoup) -> tuple[BeautifulSoup, Mapping[str, Any]]:
         """Scans the DOM and applies blockquote reconstruction strategies.
 
         This is the main entry point for the processor. It iterates through all
@@ -201,7 +201,7 @@ class BlockquoteProcessor:
                     strategy.__class__.__name__,
                     e,
                 )
-            except Exception as e:  # pylint: disable=broad-except
+            except Exception as e:  
                 # Do not intercept interpreter-exiting exceptions.
                 if isinstance(e, (KeyboardInterrupt, SystemExit)):
                     raise

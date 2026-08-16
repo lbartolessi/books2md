@@ -182,7 +182,7 @@ class FootnoteProcessor:
                     exc_info=True,
                 )
                 continue  # Continue to next strategy
-            except Exception as e:  # pylint: disable=broad-except
+            except Exception as e:  
                 # Unexpected critical errors in strategy execution
                 log.critical(
                     "Unexpected critical error in footnote strategy '%s': %s",

@@ -28,8 +28,8 @@ TOC_LINE_RX: re.Pattern[str] = re.compile(
 # --- Pillar 2 Helpers ---
 
 
-def _extract_trailing_numbers(block: Sequence[Tag]) -> list[int] | None:
-    """Extracts the trailing integer from each node's text in a block.
+def extract_trailing_numbers_from_block(block: Sequence[Tag]) -> list[int] | None:
+    """Parses the trailing integer from the text of each node in a block.
 
     Raises:
         None
@@ -39,26 +39,30 @@ def _extract_trailing_numbers(block: Sequence[Tag]) -> list[int] | None:
 
     Args:
         block (Sequence[Tag]): A list of nodes identified as a potential TOC block.
+
+    Returns:
+        list[int] | None: A list of the extracted trailing integers, or `None`
+            if any node in the block does not have a trailing integer.
     """
     numbers = []
     for node in block:
         # Strip trailing whitespace, then find a number at the very end of the line.
-        text = node.get_text().rstrip()
         # SonarLint warning: Simplify this regular expression to reduce its runtime,
         # as it has super-linear performance due to backtracking.
-        # To avoid potential ReDoS from `\d+$`, we reverse the string and use
-        # `re.match`, which is anchored at the beginning and more efficient.
+        # Original: if match := re.search(r"\d+$", text):
+        # Alternative to avoid potential backtracking issues with greedy quantifiers
+        # and end-of-string anchor, by reversing the string and using re.match.
+        text = node.get_text().rstrip()
         reversed_text = text[::-1]
         if match := re.match(r"\d+", reversed_text):
-            # Reverse the matched digits back to their original order and convert to int.
-            numbers.append(int(match[0][::-1]))
+            numbers.append(int(match[0][::-1]))  # Reverse the matched digits back
         else:
             # If any line lacks a trailing number, it's not a valid checklist.
             return None
     return numbers
 
 
-def _is_arithmetic_progression(numbers: list[int], min_lines: int) -> bool:
+def is_arithmetic_progression(numbers: list[int], min_lines: int) -> bool:
     """Implements the "Agnostic Anti-Step Guard" for Pillar 2.
 
     This checks if a sequence of numbers is a simple arithmetic progression
@@ -88,24 +92,23 @@ def _is_arithmetic_progression(numbers: list[int], min_lines: int) -> bool:
     return all(numbers[i] - numbers[i - 1] == 1 for i in range(1, len(numbers)))
 
 
-def _extract_final_column_numbers(rows: Sequence[Tag]) -> list[int]:
-    r"""Extracts the first contiguous block of digits from the last cell of each row in a table.
+# --- Pillar 3 Helpers ---
 
-    This function is designed to be resilient, skipping rows that are malformed
-    or do not contain a numeric value in their final cell, rather than aborting
-    the entire extraction.
+
+def get_final_column_numeric_values(rows: Sequence[Tag]) -> list[int] | None:
+    r"""Extracts the first contiguous block of digits from the last cell of each row in a table.
 
     Args:
         rows (Sequence[Tag]): A list of `<tr>` tags from a `<table>`.
 
     Returns:
-        list[int]: A list of the extracted integers. This list may be empty if
-            no rows contain valid numeric values.
+        list[int] | None: A list of the extracted integers, or `None` if any
+            final cell lacks a numeric digit.
 
     Rules & Limits:
         - Extraction: For each row, finds the last `<td>` or `<th>`.
-        - Validation: Skips any row that is malformed (no cells), has an empty
-          last cell, or whose last cell does not contain any numeric digits.
+        - Validation: If any final cell contains text but lacks any numeric
+          digit, the entire process aborts and returns `None`.
         - Parsing: Extracts the first contiguous block of digits (`\d+`) found
           in the cell's text, ignoring any leading sign or formatting characters
           (e.g., "-", "+", ",", ".").
@@ -117,25 +120,26 @@ def _extract_final_column_numbers(rows: Sequence[Tag]) -> list[int]:
     for row in rows:
         cells = row.find_all(["td", "th"], recursive=False)
         if not cells:
-            # Defensively skip malformed rows rather than aborting.
-            continue
+            # This case should ideally not happen in a valid table row,
+            # but we handle it defensively.
+            return None
 
         last_cell = cells[-1]
         cell_text = last_cell.get_text().strip()
 
-        # If the cell is empty, it's not a valid page number; skip this row.
+        # If the cell is empty, it's not a valid page number.
         if not cell_text:
-            continue
+            return None
 
         if match := re.search(r"\d+", cell_text):
             values.append(int(match[0]))
         else:
-            # Contains something but not a number, or no number found; skip this row.
-            continue
+            # Contains something but not a number, or no number found.
+            return None
     return values
 
 
-def _is_non_decreasing(numbers: list[int]) -> bool:
+def is_strictly_non_decreasing(numbers: list[int]) -> bool:
     """Implements the "Strict Monotonicity Rule" for Pillar 3.
 
     Checks if a list of numbers is in a non-decreasing monotonic progression.
@@ -159,10 +163,10 @@ def _is_non_decreasing(numbers: list[int]) -> bool:
     return all(numbers[i] <= numbers[i + 1] for i in range(len(numbers) - 1))
 
 
-def _first_column_has_short_text(rows: Sequence[Tag], max_chars: int) -> bool:
+def initial_column_has_short_text(rows: Sequence[Tag], max_chars: int) -> bool:
     """Implements the "Initial Column Constraint" for Pillar 3.
 
-    Checks if the first cell of every table row has a short text label.
+    Checks if the first cell of every row in a table has a short text label.
 
     Args:
         rows (Sequence[Tag]): A list of `<tr>` tags from a `<table>`.
@@ -185,9 +189,10 @@ def _first_column_has_short_text(rows: Sequence[Tag], max_chars: int) -> bool:
     """
     for row in rows:
         first_cell = row.find(["td", "th"], recursive=False)
-        if not first_cell:  # Malformed row, skip it.
-            # Malformed rows (those without a first cell) are skipped and do not
-            # affect the constraint, as they are not valid TOC rows.
+        if not first_cell:
+            # Skip malformed rows, or consider it a failure if a row is expected
+            # to have a first cell. For this check, we assume malformed rows
+            # don't contribute to the "short text" property.
             continue
         if len(first_cell.get_text(strip=True)) >= max_chars:
             return False

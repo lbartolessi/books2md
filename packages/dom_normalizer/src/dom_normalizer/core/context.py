@@ -574,7 +574,9 @@ class BookStyleContext:
             True if the node or any of its ancestors is a matching container.
         """
         for candidate in [node, *node.parents]:
-            if isinstance(candidate, Tag):
+            if isinstance(
+                candidate, Tag
+            ):  # pyright: ignore[reportUnnecessaryIsInstance]
                 if candidate.name in tag_names:
                     return True
                 class_attr = candidate.get("class")

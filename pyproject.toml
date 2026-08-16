@@ -12,3 +12,6 @@ members = [
     "packages/md_normalizer",
     "packages/utility",
 ]
+
+[dependency-groups]
+dev = []

@@ -5,10 +5,10 @@ from __future__ import annotations
 import itertools
 import logging
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Final, Union
+from typing import TYPE_CHECKING, Any, Final
 
 from bs4 import BeautifulSoup, Tag
-from bs4.element import NavigableString
+from bs4.element import PageElement
 
 from ..core import BookStyleContext
 from ..core.dom_utils import coerce_class_list, is_ignorable_node
@@ -264,7 +264,7 @@ class BaseBlockquoteStrategy(ABC):
         first_parent = self._validate_common_parent(nodes)
 
         try:
-            parent_contents = list(first_parent.contents)
+            parent_contents: list[PageElement] = list(first_parent.contents)
             # Create a mapping from node to its index for O(1) lookups.
             # This avoids an O(n^2) sort by not calling .index() repeatedly.
             node_to_index = {node: i for i, node in enumerate(parent_contents)}
@@ -393,7 +393,7 @@ class BaseBlockquoteStrategy(ABC):
         """
         try:
             tag = getattr(node, "name", None) or type(node).__name__
-        except Exception:  # pylint: disable=broad-except
+        except AttributeError:  
             tag = type(node).__name__
         if not tag:
             tag = "UnknownType"
@@ -408,7 +408,7 @@ class BaseBlockquoteStrategy(ABC):
             )
             if isinstance(text_attr, str):
                 text = text_attr.strip()
-        except Exception:  # pylint: disable=broad-except
+        except AttributeError:  
             # If introspection fails, fall back to an empty string.
             text = ""
 
@@ -421,7 +421,7 @@ class BaseBlockquoteStrategy(ABC):
     def _validate_consecutiveness(
         self,
         indices: list[int],
-        parent_contents: list[Union[Tag, NavigableString]],
+        parent_contents: list[PageElement],
     ) -> None:
         """Validates that node indices are consecutive or separated only by ignorable nodes.
 

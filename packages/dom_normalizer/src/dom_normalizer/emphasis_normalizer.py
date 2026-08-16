@@ -86,7 +86,7 @@ class _ContrastiveEmphasisHandler:
         self.normalizer = normalizer
         self.context = normalizer.context
 
-    def process_node(self, node: Tag, effective_state: EmphasisState) -> bool:
+    def process_node(self, soup: BeautifulSoup, node: Tag, effective_state: EmphasisState) -> bool:
         """Processes a node to determine if a semantic reset is needed.
 
         If the node is a contrastive element found within an italic+bold context,
@@ -110,7 +110,7 @@ class _ContrastiveEmphasisHandler:
         is_in_italic_bold_state = effective_state == (True, True)
 
         if is_contrastive and is_in_italic_bold_state:
-            self._perform_semantic_reset(node)
+            self._perform_semantic_reset(soup, node)
             self.normalizer.semantic_resets_triggered += 1
             return True
         return False
@@ -128,8 +128,9 @@ class _ContrastiveEmphasisHandler:
             A tuple containing the (i_grandparent, b_parent) if the structure
             is valid, otherwise (None, None).
         """
-        i_grandparent = contrastive_node.find_parent("i")
-        b_parent = contrastive_node.find_parent("b")
+        # Explicitly type hint and cast the result of find_parent to Tag | None
+        i_grandparent: Tag | None = contrastive_node.find_parent("i")
+        b_parent: Tag | None = contrastive_node.find_parent("b")
 
         if not i_grandparent or not b_parent:
             log.warning(
@@ -137,6 +138,10 @@ class _ContrastiveEmphasisHandler:
                 contrastive_node,
             )
             return None, None
+        # After this check, i_grandparent and b_parent are guaranteed to be Tag.
+        # We assert this to help Pylance with type narrowing.
+        assert isinstance(i_grandparent, Tag)
+        assert isinstance(b_parent, Tag)
 
         # Verify that b_parent is a descendant of i_grandparent to confirm <i><b> nesting.
         parent = b_parent.parent
@@ -185,24 +190,62 @@ class _ContrastiveEmphasisHandler:
         # Extract all parts from the DOM.
         for node in before_nodes:
             node.extract()
+        contrastive_node.extract()
         for node in after_nodes:
             node.extract()
 
         return before_nodes, after_nodes
 
-    def _create_emphasis_block(
+    def _normalize_partition_boundaries(
         self,
-        template_tag: Tag,
+        content: list[PageElement],
+        *,
+        trim_left: bool,
+        trim_right: bool,
+    ) -> list[PageElement]:
+        """Strips whitespace that was only used to separate the contrastive span.
+
+        The semantic reset partitions text inside an `<i><b>` run around the
+        contrastive node. Any whitespace immediately adjacent to the contrastive
+        segment belongs to the surrounding text run, not to the plain contrastive
+        span itself; trimming it avoids leaking stray spaces at the reset boundary.
+        """
+        if not content:
+            return []
+
+        normalized: list[PageElement] = []
+        for index, node in enumerate(content):
+            if not isinstance(node, NavigableString):
+                normalized.append(node)
+                continue
+
+            text = str(node)
+            if trim_left and index == 0:
+                text = text.lstrip()
+            if trim_right and index == len(content) - 1:
+                text = text.rstrip()
+            if text:
+                normalized.append(NavigableString(text))
+
+        return normalized
+
+    def _create_emphasis_block(
+        self, # The docstring for this method is not modified as per instructions.
+        soup: BeautifulSoup,
         content: list[PageElement],
     ) -> Tag:
-        """Creates a new <i><b>...</b></i> block with the given content."""
-        new_i = template_tag.new_tag("i")
-        new_b = template_tag.new_tag("b")
+        """Creates a new <i><b>...</b></i> block with the given content.
+
+        Use the live ancestor tag as the tag factory so the generated nodes stay
+        attached to the same tree and do not depend on a detached `soup` root.
+        """
+        new_i = soup.new_tag("i")
+        new_b = soup.new_tag("b")
         new_b.extend(content)
         new_i.append(new_b)
         return new_i
 
-    def _perform_semantic_reset(self, contrastive_node: Tag) -> None:
+    def _perform_semantic_reset(self, soup: BeautifulSoup, contrastive_node: Tag) -> None:
         """Performs a semantic reset for a contrastive node in an italic+bold state.
 
         This is a tree-partition operation that splits the nearest `<i><b>`
@@ -222,29 +265,39 @@ class _ContrastiveEmphasisHandler:
         if not i_grandparent or not b_parent:
             return
 
-        before_nodes, after_nodes = self._partition_and_extract_content(
-            b_parent,
-            contrastive_node,
+        # Partition the content of b_parent around the contrastive_node.
+        # This also extracts contrastive_node, before_nodes, and after_nodes from the DOM.
+        before_content, after_content = self._partition_and_extract_content(b_parent, contrastive_node)
+        before_content = self._normalize_partition_boundaries(
+            before_content,
+            trim_left=False,
+            trim_right=True,
+        )
+        after_content = self._normalize_partition_boundaries(
+            after_content,
+            trim_left=True,
+            trim_right=False,
         )
 
-        # Reconstruct DOM around the original i_grandparent
-        if after_nodes:
-            new_after_i = self._create_emphasis_block(i_grandparent, after_nodes)
-            i_grandparent.insert_after(new_after_i)
+        # 1. Insert the 'before' emphasis block before the original i_grandparent.
+        if before_content:
+            new_before_i = self._create_emphasis_block(soup, before_content)
+            i_grandparent.insert_before(new_before_i)
 
-        i_grandparent.insert_after(contrastive_node)
+        # 2. Insert the contrastive node itself, plain, before the original i_grandparent.
+        i_grandparent.insert_before(contrastive_node)
 
-        if before_nodes:
-            # Repurpose the original tags for the 'before' content
-            b_parent.clear()
-            b_parent.extend(before_nodes)
-        else:
-            # If no 'before' content, the original tags are empty and can be removed.
-            i_grandparent.decompose()
+        # 3. The original i_grandparent (and its child b_parent) will now contain the 'after' content.
+        b_parent.clear() # Clear the original b_parent
+        if after_content:
+            b_parent.extend(after_content)
 
-        if not b_parent.get_text(strip=True):
+        # 4. Decompose any empty emphasis tags that remain.
+        # Check for any child tags too, not just text, to ensure it's truly empty.
+        if not b_parent.get_text(strip=True) and not b_parent.find(True):
             b_parent.decompose()
-        if not i_grandparent.get_text(strip=True):
+        # Check for any child tags too, not just text, to ensure it's truly empty.
+        if not i_grandparent.get_text(strip=True) and not i_grandparent.find(True):
             i_grandparent.decompose()
 
 
@@ -338,7 +391,7 @@ class EmphasisNormalizer:
 
         self._normalize_native_tags(soup)
         if soup.body:
-            self._traverse_with_emphasis_state(soup.body, (False, False))
+            self._traverse_with_emphasis_state(soup, soup.body, (False, False))
         # Final cleanup pass to flatten any redundant tags created by the traversal.
         # This robustly handles any double-wrapping that may have occurred.
         # Per review, this is a safe and correct way to handle redundant nesting.
@@ -525,6 +578,7 @@ class EmphasisNormalizer:
 
     def _wrap_node_with_emphasis(
         self,
+        soup: BeautifulSoup,
         node_to_wrap: PageElement,
         state: EmphasisState,  # This is the desired state for the node
     ) -> PageElement:
@@ -552,56 +606,59 @@ class EmphasisNormalizer:
         if not node_to_wrap.get_text(strip=True) or not node_to_wrap.parent:
             return node_to_wrap
 
-        parent = node_to_wrap.parent
         is_italic_needed, is_bold_needed = self._get_wrapping_actions(
             node_to_wrap,
             state,
         )
 
         if is_italic_needed and is_bold_needed:
-            return self._wrap_combined_emphasis(node_to_wrap, parent)
+            return self._wrap_combined_emphasis(soup, node_to_wrap)
         if is_italic_needed:
-            return self._wrap_single_emphasis(node_to_wrap, parent, "i")
+            return self._wrap_single_emphasis(soup, node_to_wrap, "i")
         if is_bold_needed:
-            return self._wrap_single_emphasis(node_to_wrap, parent, "b")
+            return self._wrap_single_emphasis(soup, node_to_wrap, "b")
         return node_to_wrap
 
-    def _wrap_combined_emphasis(self, node_to_wrap: PageElement, parent: Tag) -> Tag:
+    def _wrap_combined_emphasis(
+        self,
+        soup: BeautifulSoup,
+        node_to_wrap: PageElement,
+    ) -> Tag:
         """Wraps a node with canonical `<i><b>` tags for combined emphasis.
 
         Args:
             node_to_wrap (PageElement): The node to wrap.
-            parent (Tag): The immediate parent of the node, used for creating new tags.
+            soup (BeautifulSoup): The BeautifulSoup instance for creating new tags.
 
         Returns:
             Tag: The new outer `<i>` wrapper tag.
         """
-        outer_wrapper = parent.new_tag("i")
-        inner_wrapper = parent.new_tag("b")
+        outer_wrapper = soup.new_tag("i")
+        inner_wrapper = soup.new_tag("b")
         node_to_wrap.wrap(inner_wrapper)
         inner_wrapper.wrap(outer_wrapper)
         self.italic_nodes_normalized += 1
         self.bold_nodes_normalized += 1
         log.debug("Wrapped node with <i><b> emphasis.")
-        return outer_wrapper
+        return outer_wrapper # outer_wrapper is already cast to Tag
 
     def _wrap_single_emphasis(
         self,
+        soup: BeautifulSoup,
         node_to_wrap: PageElement,
-        parent: Tag,
         tag_name: str,
     ) -> Tag:
         """Wraps a node with a single emphasis tag (`<i>` or `<b>`).
 
         Args:
             node_to_wrap (PageElement): The node to wrap.
-            parent (Tag): The immediate parent of the node, used for creating new tags.
             tag_name (str): The name of the tag to use for wrapping ('i' or 'b').
+            soup (BeautifulSoup): The BeautifulSoup instance for creating new tags.
 
         Returns:
             Tag: The new wrapper tag.
         """
-        wrapper = parent.new_tag(tag_name)
+        wrapper = soup.new_tag(tag_name)
         node_to_wrap.wrap(wrapper)
         if tag_name == "i":
             self.italic_nodes_normalized += 1
@@ -609,18 +666,24 @@ class EmphasisNormalizer:
         else:  # tag_name == "b"
             self.bold_nodes_normalized += 1
             log.debug("Wrapped node with <b> emphasis.")
-        return wrapper
+        return wrapper # wrapper is already cast to Tag
 
     def _process_string_node(
         self,
+        soup: BeautifulSoup,
         node: NavigableString,
         inherited_state: EmphasisState,
     ) -> None:
         """Processes a NavigableString, wrapping it if it contains text."""
         if node.strip():
-            self._wrap_node_with_emphasis(node, inherited_state)
+            self._wrap_node_with_emphasis(soup, node, inherited_state)
 
-    def _process_tag_node(self, node: Tag, inherited_state: EmphasisState) -> None:
+    def _process_tag_node(
+        self,
+        soup: BeautifulSoup,
+        node: Tag,
+        inherited_state: EmphasisState,
+    ) -> None:
         """Processes a Tag, calculating the new state and recursing on children."""
         if self.context.is_inside_code_block(node):
             return
@@ -629,17 +692,17 @@ class EmphasisNormalizer:
         effective_state = self._get_cumulative_state(node, inherited_state)
 
         # Handle semantic reset BEFORE any wrapping or further traversal.
-        if self.contrastive_handler.process_node(node, effective_state):
+        if self.contrastive_handler.process_node(soup, node, effective_state):
             return
 
         # If the node is not an emphasis tag itself, check if it introduces
         # a new emphasis state via classes. If so, wrap it.
         if node.name not in {"i", "b"} and effective_state != inherited_state:
-            self._wrap_node_with_emphasis(node, effective_state)
+            self._wrap_node_with_emphasis(soup, node, effective_state)
 
         # Traverse children with the new effective state.
         for child in snapshot_iterator(node.children):
-            self._traverse_with_emphasis_state(child, effective_state)
+            self._traverse_with_emphasis_state(soup, child, effective_state)
 
         # After children are processed, ensure canonical nesting for this node
         # if it's an emphasis tag.
@@ -648,14 +711,15 @@ class EmphasisNormalizer:
 
     def _traverse_with_emphasis_state(
         self,
+        soup: BeautifulSoup,
         current_node: PageElement,
         inherited_state: EmphasisState,
     ) -> None:
         """Dispatches traversal to the appropriate handler based on node type."""
         if isinstance(current_node, NavigableString):
-            self._process_string_node(current_node, inherited_state)
+            self._process_string_node(soup, current_node, inherited_state)
         elif isinstance(current_node, Tag):
-            self._process_tag_node(current_node, inherited_state)
+            self._process_tag_node(soup, current_node, inherited_state)
 
     def _get_node_own_emphasis_state(self, node: PageElement) -> EmphasisState:
         """Determines if a node itself is italic or bold based on its name or class."""

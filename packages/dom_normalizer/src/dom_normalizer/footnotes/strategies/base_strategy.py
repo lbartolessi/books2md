@@ -48,7 +48,7 @@ from dataclasses import asdict, dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Final
 
-from bs4 import BeautifulSoup, Tag
+from bs4 import BeautifulSoup, NavigableString, Tag
 
 from dom_normalizer.core.dom_utils import (
     coerce_class_list,
@@ -73,8 +73,8 @@ STRATEGY_PROCESSOR_UNBOUND_MSG: Final[str] = (
 log = logging.getLogger(__name__)
 
 
-@dataclass
-class _Anomaly:
+@dataclass(frozen=True)
+class Anomaly:
     """Represents a structured anomaly for reporting."""
 
     key: str
@@ -82,12 +82,11 @@ class _Anomaly:
     source: str | None = None
     payload: dict[str, Any] | None = None
 
-
-class _AnomalyCollector:
+class AnomalyCollector:
     """A helper to collect and manage structured anomalies."""
 
     def __init__(self) -> None:
-        self.anomalies: list[_Anomaly] = []
+        self.anomalies: list[Anomaly] = []
 
     def add(
         self,
@@ -96,9 +95,9 @@ class _AnomalyCollector:
         source: str | None = None,
         payload: dict[str, Any] | None = None,
     ) -> None:
-        """Adds a new anomaly."""
+        """Adds a new anomaly.""" # Anomaly is now public, so no need for _Anomaly
         self.anomalies.append(
-            _Anomaly(key=key, message=message, source=source, payload=payload),
+            Anomaly(key=key, message=message, source=source, payload=payload),
         )
 
     def to_list(self) -> list[dict[str, Any]]:
@@ -117,7 +116,7 @@ class AnomalyKey(StrEnum):
     ORPHAN_NOTE = "orphan-note"
 
 
-def _normalize_href_attr(href_attr: Any) -> str | None:
+def normalize_href_attr(href_attr: Any) -> str | None:
     """Normalize a raw href attribute value to a usable string or None.
 
     Returns:
@@ -289,7 +288,7 @@ class BaseFootnoteStrategy(ABC):
 
     def _add_malformed_href_anomaly(
         self,
-        collector: "_AnomalyCollector",
+        collector: AnomalyCollector,
         callout: Tag,
         raw_href: Any,
         message: str,
@@ -318,7 +317,7 @@ class BaseFootnoteStrategy(ABC):
 
     def _add_dangling_ref_anomaly(
         self,
-        collector: "_AnomalyCollector",
+        collector: AnomalyCollector,
         callout: Tag,
         target_id: str,
     ) -> None:
@@ -457,13 +456,13 @@ class BaseFootnoteStrategy(ABC):
         backlink = note_body_tag.select_one(self.backlink_selector)
         if not backlink:
             backlink = soup.new_tag("a", role="doc-backlink")
-            insertion_parent = note_body_tag.find("p") or note_body_tag
+            insertion_parent = note_body_tag.select_one("p") or note_body_tag
 
             # Add a space before the backlink unless the parent's last content
             # is already a string ending with whitespace.
             if not (
                 insertion_parent.contents
-                and isinstance(insertion_parent.contents[-1], str)
+                and isinstance(insertion_parent.contents[-1], NavigableString)
                 and insertion_parent.contents[-1].endswith(" ")
             ):
                 insertion_parent.append(" ")
@@ -544,7 +543,7 @@ class BaseFootnoteStrategy(ABC):
         self,
         soup: BeautifulSoup,
         note_bodies: dict[str, Tag],
-        collector: "_AnomalyCollector",  # Changed from anomalies: list[str]
+        collector: AnomalyCollector,
     ) -> tuple[dict[int, Tag], int, set[str]]:
         """Processes all callouts, matching them to bodies and standardizing them.
 
@@ -598,7 +597,7 @@ class BaseFootnoteStrategy(ABC):
 
         for i, callout in enumerate(soup.select(self.callout_selector), 1):
             raw_href = callout.get("href")
-            normalized_href = _normalize_href_attr(raw_href)
+            normalized_href = normalize_href_attr(raw_href)
 
             if normalized_href is None:
                 self._add_malformed_href_anomaly(
@@ -692,7 +691,7 @@ class BaseFootnoteStrategy(ABC):
                 soup.append(notes_section)
 
         # Find the <ol>. If it exists, clear it to prevent duplicates. If not, create it.
-        notes_ol = notes_section.find("ol")
+        notes_ol = notes_section.select_one("ol")
         if notes_ol:
             notes_ol.clear()
         else:

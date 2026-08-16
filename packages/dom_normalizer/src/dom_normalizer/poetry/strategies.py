@@ -149,6 +149,8 @@ class HeuristicTableStrategy(BasePoetryStrategy):
 
         # Find rows only in the immediate table body to avoid nested tables.
         row_container = target.find("tbody") or target
+        if not isinstance(row_container, Tag):
+            return False, "not_a_table"
         rows = row_container.find_all("tr", recursive=False)
         if len(rows) < self.MIN_POETIC_TABLE_ROWS:
             return False, "not_enough_rows"
@@ -176,6 +178,8 @@ class HeuristicTableStrategy(BasePoetryStrategy):
         lines = []
         # Use the same row discovery logic as can_process for consistency.
         row_container = target.find("tbody") or target
+        if not isinstance(row_container, Tag):
+            return lines
         for row in row_container.find_all("tr", recursive=False):
             lines.extend(row.find_all("td", recursive=False))
         return lines
@@ -248,7 +252,7 @@ class HeuristicSeparatorStrategy(_HeuristicStrategy):
             # This wires `max_words_for_enjambment` into the heuristic so that very long
             # lines can be excluded from the ratio, as intended by the configuration.
             if (
-                self.max_words_for_enjambment is not None
+                self.max_words_for_enjambment
                 and len(stripped_text.split()) > self.max_words_for_enjambment
             ):
                 continue
@@ -319,7 +323,10 @@ class HeuristicParagraphContainerStrategy(_HeuristicStrategy):
             A list of paragraph tags to evaluate, or None if no valid structure is found.
         """
         container = target
-        if target.name == "p" and target.parent and isinstance(target.parent, Tag):
+        if target.name == "p" and target.parent and isinstance(
+            target.parent,
+            Tag,
+        ):  # pyright: ignore[reportUnnecessaryIsInstance]
             container = target.parent
 
         if child_paragraphs := container.find_all("p", recursive=False):

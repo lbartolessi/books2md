@@ -17,15 +17,15 @@ log = logging.getLogger(__name__)
 
 # Attempt to import lingua for validation, but allow the app to run without it.
 try:
-    _LINGUA_MODULE = cast(Any, importlib.import_module("lingua"))
+    _lingua_module = cast(Any, importlib.import_module("lingua"))
 except ImportError:
-    _LINGUA_MODULE = None
+    _lingua_module = None
 
-if _LINGUA_MODULE:
+if _lingua_module:
     # This will be the actual lingua.Language enum
-    LANGUAGE: Any = cast(Any, getattr(_LINGUA_MODULE, "Language", None))
+    LinguaLanguage: Any = cast(Any, getattr(_lingua_module, "Language", None))
 else:
-    LANGUAGE = None
+    LinguaLanguage = None
 
 
 def _validate_lingua_enum_names(language_map: dict[str, str]) -> dict[str, str]:
@@ -35,7 +35,7 @@ def _validate_lingua_enum_names(language_map: dict[str, str]) -> dict[str, str]:
     setting, which is typically configured via the DOM_NORMALIZER_LANGUAGE_ENUM_MAP
     environment variable.
     """
-    if not LANGUAGE:
+    if not LinguaLanguage:
         log.warning(
             "The 'lingua-python' library is not installed. Skipping validation "
             "of 'language_enum_map' / 'DOM_NORMALIZER_LANGUAGE_ENUM_MAP'. "
@@ -46,7 +46,7 @@ def _validate_lingua_enum_names(language_map: dict[str, str]) -> dict[str, str]:
     if invalid_items := [
         (key, value)
         for key, value in language_map.items()
-        if not hasattr(LANGUAGE, value)
+        if not hasattr(LinguaLanguage, value)
     ]:
         invalid_keys = [key for key, _ in invalid_items]
         invalid_values = [value for _, value in invalid_items]

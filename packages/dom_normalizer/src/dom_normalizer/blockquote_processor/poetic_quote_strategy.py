@@ -171,7 +171,7 @@ class PoeticQuoteStrategy(BaseBlockquoteStrategy):
             left = parts[0]
         elif len(parts) in {2, 3}:
             left = parts[1]
-        elif len(parts) >= 4:  # noqa: PLR2004
+        elif len(parts) >= 4:
             left = parts[3]
         else:  # 0 parts, should not happen with the regex
             return False
@@ -260,9 +260,8 @@ class PoeticQuoteStrategy(BaseBlockquoteStrategy):
         if not self._is_valid_poetic_paragraph(start_node, context):
             # If the node is otherwise a valid paragraph but has an indent, it's
             # a prose candidate. Log this specific case for better debugging.
-            if isinstance(start_node, Tag) and context.is_blockquote_element(
-                start_node,
-            ):
+            # The start_node is already typed as a Tag, so the isinstance check is redundant.
+            if context.is_blockquote_element(start_node):
                 log.debug(
                     "PoeticQuoteStrategy: Node is marked as a 'blockquote-element', deferring to ProseQuoteStrategy.",
                 )

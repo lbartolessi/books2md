@@ -328,7 +328,9 @@ class PoetryNormalizer:
         indent = 0
         nodes_to_append = []
 
-        if isinstance(line_content, Tag):
+        if isinstance(
+            line_content, Tag
+        ):  # pyright: ignore[reportUnnecessaryIsInstance]
             indent = self._calculate_indent(line_content)
             # If a line is just for indentation (only &nbsp;), we don't want to
             # append the &nbsp; characters themselves as content.
@@ -338,7 +340,9 @@ class PoetryNormalizer:
                 nodes_to_append.extend(
                     copy.deepcopy(child) for child in line_content.children
                 )
-        elif isinstance(line_content, list):
+        elif isinstance(
+            line_content, list
+        ):  # pyright: ignore[reportUnnecessaryIsInstance]
             nodes_to_append.extend(copy.deepcopy(node) for node in line_content)
 
         self._strip_indentation_whitespace(nodes_to_append)
@@ -363,7 +367,9 @@ class PoetryNormalizer:
         # Get the text from the first node. For tags, we need all descendant strings.
         if isinstance(first_node, NavigableString):
             text = str(first_node)
-        elif isinstance(first_node, Tag):
+        elif isinstance(
+            first_node, Tag
+        ):  # pyright: ignore[reportUnnecessaryIsInstance]
             # Concatenate all descendant strings to get the full text content
             # while preserving all whitespace characters like &nbsp;.
             text = "".join(first_node.strings)
@@ -384,7 +390,7 @@ class PoetryNormalizer:
 
         if isinstance(first_node, NavigableString):
             nodes_to_append[0] = NavigableString(text[chars_to_strip:])
-        elif isinstance(first_node, Tag):
+        else:  # first_node is guaranteed to be a Tag here due to prior checks
             trim_text_from_tag_start(first_node, chars_to_strip)
 
     def _populate_poetry_block(

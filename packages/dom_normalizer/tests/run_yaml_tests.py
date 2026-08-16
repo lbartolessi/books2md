@@ -1,5 +1,3 @@
-# pylint: disable=C0413
-#!/usr/bin/env python3
 """
 This standalone Python engine recursively walks your `tests/specs/` directory,
 dynamically imports the target normalizer classes, sets up mock environments
@@ -29,47 +27,46 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-import yaml  # noqa: E402
-from bs4 import BeautifulSoup, Tag  # noqa: E402
-
-from src.dom_normalizer.blockquote_processor.epigraph_strategy import (  # noqa: E402
+import yaml
+from bs4 import BeautifulSoup, Tag
+from src.dom_normalizer.blockquote_processor.epigraph_strategy import (
     EpigraphStrategy,
 )
-from src.dom_normalizer.blockquote_processor.foreign_block_strategy import (  # noqa: E402
+from src.dom_normalizer.blockquote_processor.foreign_block_strategy import (
     ForeignBlockStrategy,
 )
-from src.dom_normalizer.blockquote_processor.poetic_quote_strategy import (  # noqa: E402
+from src.dom_normalizer.blockquote_processor.poetic_quote_strategy import (
     PoeticQuoteStrategy,
 )
-from src.dom_normalizer.blockquote_processor.prose_quote_strategy import (  # noqa: E402
+from src.dom_normalizer.blockquote_processor.prose_quote_strategy import (
     ProseQuoteStrategy,
 )
-from src.dom_normalizer.core.context import (  # noqa: E402
+from src.dom_normalizer.core.context import (
     BookStyleContext as RealBookStyleContext,
 )
-from src.dom_normalizer.core.dom_utils import (  # noqa: E402
+from src.dom_normalizer.core.dom_utils import (
     coerce_class_list,
     find_all_snapshot,
     normalize_style_attribute,
     strip_css_properties,
 )
-from src.dom_normalizer.core.lang_codes import ISOLanguageCode  # noqa: E402
-from src.dom_normalizer.core.media_utils import (  # noqa: E402
+from src.dom_normalizer.core.lang_codes import ISOLanguageCode
+from src.dom_normalizer.core.media_utils import (
     MIME_TO_EXTENSION_MAP,
     normalize_extension,
 )
-from src.dom_normalizer.footnotes.strategies import (  # noqa: E402
+from src.dom_normalizer.footnotes.strategies import (
     AnomalyStrategy,
     AriaDpubStrategy,
     NativeConventionFootnoteStrategy,
     ParameterizedFootnoteStrategy,
 )
-from src.dom_normalizer.lists.strategies import (  # noqa: E402
+from src.dom_normalizer.lists.strategies import (
     FusionStrategy,
     ReconstructionStrategy,
     SanitizationStrategy,
 )
-from src.dom_normalizer.structural_sanitizer.strategies import (  # noqa: E402
+from src.dom_normalizer.structural_sanitizer.strategies import (
     AttributePurgeStrategy,
     BrCollapseStrategy,
     EpilogueStrategy,
@@ -396,7 +393,7 @@ class MockProcessor:
 
     def read_local_asset(self, src_attr, _file_path):  # W0613:unused-argument
         """Mock method to simulate reading a local asset."""
-        from pathlib import Path  # noqa: PLC0415
+        from pathlib import Path
 
         if isinstance(src_attr, str):
             return (
@@ -442,7 +439,7 @@ class MockProcessor:
 
     def get_media_type_and_increment_counter(self, ext: str) -> str:
         """Mock method to categorize media and update telemetry."""
-        from src.dom_normalizer.core.media_utils import (  # noqa: PLC0415
+        from src.dom_normalizer.core.media_utils import (
             AUDIO_EXTENSIONS,
             IMAGE_EXTENSIONS,
             VIDEO_EXTENSIONS,
@@ -873,16 +870,16 @@ def _execute_process_method_with_inspection(
 
     # For DocumentStrategy or other processor-like strategies
     num_params = len(params)
-    if num_params == 2:  # e.g., process(self, soup)  # noqa: PLR2004
+    if num_params == 2:  # e.g., process(self, soup)
         process_method_bound(soup)
-    elif num_params == 3:  # e.g., process(self, soup, context)  # noqa: PLR2004
+    elif num_params == 3:  # e.g., process(self, soup, context)
         process_method_bound(soup, context)
     elif (
-        num_params == 4  # noqa: PLR2004
+        num_params == 4
     ):  # e.g., process(self, soup, context, all_soups)
         process_method_bound(soup, context, None)
     elif (
-        num_params == 5  # noqa: PLR2004
+        num_params == 5
     ):  # e.g., process(self, soup, context, all_soups, current_soup_key)
         process_method_bound(soup, context, None, None)
     else:
@@ -902,7 +899,7 @@ def _execute_handle_method(
         raise ValueError("Input HTML for test case is missing a <body> tag.")
     for tag in tuple(soup.find_all(True)):
         if tag.parent and strategy_instance.can_handle(tag):
-            from pathlib import Path  # noqa: PLC0415
+            from pathlib import Path
 
             mock_file_path = Path(context.file_name)
             strategy_instance.handle(tag, soup, mock_file_path)
@@ -959,7 +956,7 @@ def _run_media_processor_test(
     expected_telemetry: dict[str, Any],
 ) -> None:
     """Helper to run MediaProcessor tests with I/O mocking."""
-    from pathlib import Path  # noqa: PLC0415
+    from pathlib import Path
 
     with tempfile.TemporaryDirectory() as temp_dir:
         output_dir = Path(temp_dir)
@@ -995,7 +992,7 @@ def _setup_media_processor_mocks(
     context: MockBookStyleContext,
 ) -> None:
     """Sets up mocks for MediaProcessor's I/O operations."""
-    from pathlib import Path  # noqa: PLC0415
+    from pathlib import Path
 
     def mock_read_local_asset(src_attr, _file_path):
         if not isinstance(src_attr, str):
@@ -1199,9 +1196,22 @@ def _run_processor_test(
                 f"Processor class {processor_class.__name__} has no 'process' or 'sanitize' method.",
             )
 
-        # Call the process method with the correct signature
-        process_method(soup)
+        # Get context_spec for special argument handling
+        context_spec = case.get("context", {})
 
+        # Call the process method with the correct signature
+        from pathlib import Path
+
+        sig = inspect.signature(process_method)
+        kwargs = {}
+        if "file_path" in sig.parameters:
+            kwargs["file_path"] = Path(context.file_name)
+        if "is_new_book_or_document" in sig.parameters:
+            kwargs["is_new_book_or_document"] = context_spec.get(
+                "is_new_book_or_document", False
+            )
+
+        process_method(soup, **kwargs)
         # After mutation, validate telemetry against the processor instance
         _validate_telemetry(processor_instance, expected_telemetry, results)
 
@@ -1282,7 +1292,7 @@ def _print_colorized_diff(details: str):
             print(line)
 
 
-def _print_failure_report(all_failures_report: list):
+def _print_failure_report(all_failures_report: list[tuple[str, dict[str, str], list[tuple[str, str]]]]):
     """Prints a detailed report of all failed and errored test cases."""
     if not all_failures_report:
         return
@@ -1327,10 +1337,10 @@ def _print_summary(stats: dict[str, int]):
 
 
 def _run_suite_cases(
-    test_cases: list,
+    test_cases: list[dict[str, Any]],
     suite_path: str,
-    stats: dict,
-    all_failures_report: list,
+    stats: dict[str, int],
+    all_failures_report: list[Any],
     package_name: str,
 ):
     """Runs all test cases for a single suite."""
@@ -1347,7 +1357,7 @@ def _run_suite_cases(
                 print(f"  {RED}x [FAILED]{RESET} {res['id']}: {case['target']}")
                 stats["failed_cases"] += 1
                 all_failures_report.append((suite_path, case, res["failures"]))
-        except Exception as e:  # pylint: disable=broad-except
+        except (ValueError, KeyError, TypeError, AttributeError) as e:  
             print(
                 f"  {YELLOW}‼ [ERROR]{RESET} {case['id']}: {case['target']} — {e}",
             )
@@ -1358,10 +1368,10 @@ def _run_suite_cases(
 
 
 def _process_single_suite_definition(
-    suite_data: dict,
+    suite_data: Any,
     suite_path: str,
     stats: dict[str, int],
-    all_failures_report: list,
+    all_failures_report: list[Any],
 ):
     """Processes a single suite definition from a YAML file."""
     if not isinstance(suite_data, dict):
@@ -1395,13 +1405,13 @@ def _process_single_suite_definition(
 def _process_suite_file(
     suite_path: str,
     stats: dict[str, int],
-    all_failures_report: list,
+    all_failures_report: list[Any],
 ):
     """Loads, parses, and runs the test suites from a single YAML file."""
     with open(suite_path, encoding="utf-8") as f:
         try:
             loaded_yaml = yaml.safe_load(f)
-        except Exception as e:  # pylint: disable=broad-except
+        except yaml.YAMLError as e:  
             print(f"{RED}[YAML SYNTAX ERROR] in {suite_path}: {e}{RESET}")
             stats["error_cases"] += 1
             return
@@ -1436,7 +1446,7 @@ def discover_and_run_all_suites(specs_dir: str):
         "failed_cases": 0,
         "error_cases": 0,
     }
-    all_failures_report = []
+    all_failures_report: list[Any] = []
 
     for root, _, files in os.walk(specs_dir):
         for file in files:
