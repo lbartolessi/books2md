@@ -49,6 +49,7 @@ from bs4 import BeautifulSoup, Tag
 from bs4.element import NavigableString
 
 from .core import BookStyleContext, PipelineStatus
+from .core.component_registry import register_processor_factory
 from .core.dom_utils import (
     BLOCK_LEVEL_TAGS,
     find_all_snapshot,
@@ -76,6 +77,7 @@ _MATH_RELATED_TAGS: Final[frozenset[str]] = frozenset(
 )
 
 
+@register_processor_factory("math_processor")
 class MathProcessor:
     """A format normalization engine for mathematical expressions.
 

@@ -48,6 +48,7 @@ from bs4 import BeautifulSoup, Tag
 from bs4.element import NavigableString, PageElement
 
 from .core import BookStyleContext, PipelineStatus
+from .core.component_registry import register_processor_factory
 from .core.dom_utils import (
     coerce_class_list,
     find_all_snapshot,
@@ -499,6 +500,7 @@ class _ClassPromotionHandler:
         return promotions
 
 
+@register_processor_factory("heading_normalizer")
 class HeadingNormalizer:
     """
     Normalizes heading elements by promoting styled paragraphs, demoting invalid

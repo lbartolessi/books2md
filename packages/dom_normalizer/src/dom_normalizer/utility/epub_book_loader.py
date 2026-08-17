@@ -111,7 +111,7 @@ class EpubBookLoader(BaseBookLoader):
             method adds the newly parsed `BeautifulSoup` object to the cache.
 
         Rules & Logic:
-            - The content is parsed using the 'lxml' HTML parser for tolerance
+            - The content is parsed using the 'html5lib' HTML parser for tolerance
               of malformed XHTML, which is common in EPUBs.
         """
         if self._zip is None:
@@ -119,7 +119,7 @@ class EpubBookLoader(BaseBookLoader):
         if file_key not in self._soup_cache:
             # Assumes self._manifest['hrefs'] is a dict mapping file_key to path
             raw_bytes = self._zip.read(self._manifest["hrefs"][file_key])
-            # Parsed with 'lxml' (HTML mode) — tolerant of the malformed
+            # Parsed with 'html5lib' (HTML mode) — tolerant of the malformed
             # XHTML routinely produced by legacy OCR/editorial tooling,
             # matching structural_sanitizer's entire reason for existing.
             self._soup_cache[file_key] = BeautifulSoup(raw_bytes, "html5lib")

@@ -406,7 +406,7 @@ def clone_tag(tag: Tag) -> Tag:
     This utility provides a reliable method for creating a deep copy of a tag that
     is completely detached from its original document. It uses BeautifulSoup's
     string-reparsing mechanism, which is the only fully supported way to achieve
-    a deep copy. The new tag is parsed using the same builder (e.g., 'lxml',
+    a deep copy. The new tag is parsed using the same builder (e.g., 'html5lib',
     'html.parser') as the original tag's document to ensure consistency. If the
     tag is not associated with a document, it defaults to 'html.parser'.
 
@@ -428,7 +428,7 @@ def clone_tag(tag: Tag) -> Tag:
     # Pylance can sometimes incorrectly infer the type of `tag.builder.NAME`.
     # We use an explicit cast to `str` to ensure `parser_name` is correctly
     # typed and resolve the false positive from the type checker.
-    parser_name = cast(str, tag.builder.NAME) if tag.builder else "html.parser"
+    parser_name = cast(str, tag.builder.NAME) if tag.builder else "html5lib"
     return cast(
         Tag,
         BeautifulSoup(str(tag), parser_name).contents[0],

@@ -18,7 +18,11 @@ from bs4 import BeautifulSoup, Tag
 from bs4.element import NavigableString, PageElement
 
 from ..core import BookStyleContext, PipelineStatus
-from ..core.dom_utils import coerce_class_list, generate_processor_metadata
+from ..core.component_registry import register_processor_factory
+from ..core.dom_utils import (
+    coerce_class_list,
+    generate_processor_metadata,
+)
 from ..core.list_utils import trim_text_from_tag_start
 from .indentation_helper import PoetryIndentationHelper
 from .matcher import MatchResult, StructuralMatcher
@@ -27,6 +31,8 @@ from .strategies import BasePoetryStrategy
 log = logging.getLogger(__name__)
 
 
+@register_processor_factory("poetry")
+@register_processor_factory("poetry_normalizer")
 class PoetryNormalizer:
     """Identifies and normalizes blocks of poetic verse into a standard structure."""
 

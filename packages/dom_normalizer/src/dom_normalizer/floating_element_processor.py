@@ -57,6 +57,7 @@ from typing import Any
 from bs4 import BeautifulSoup, Tag
 
 from .core import BookStyleContext, PipelineStatus
+from .core.component_registry import register_processor_factory
 from .core.dom_utils import (
     coerce_class_list,
     get_utc_timestamp,
@@ -67,6 +68,7 @@ from .core.dom_utils import (
 log = logging.getLogger(__name__)
 
 
+@register_processor_factory("floating_element_processor")
 class FloatingElementProcessor:
     """Isolates non-linear layout components like sidebars into <aside> tags."""
 

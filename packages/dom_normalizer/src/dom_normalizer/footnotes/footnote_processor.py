@@ -19,13 +19,6 @@ Class Methods:
     - BaseFootnoteStrategy:
         - can_process: Abstract method to evaluate if the DOM matches the strategy's signature.
         - process: Abstract method to execute the in-place DOM mutation and return results.
-    - NativeConventionFootnoteStrategy:
-        - __init__: Stores the `notes_file_key` for locating the note bodies.
-        - can_process: Checks for the presence of `<a type="note">` tags.
-        - process: For each `<a type="note" xlink:href="#target_id">`,
-        it generates a unique return ID (`fnref-{target_id}-{sequential_index}`),
-        finds the target note body, and injects a backlink with `role="doc-backlink"`.
-        It logs unresolved targets.
     - ParameterizedFootnoteStrategy:
         - __init__: Initializes the strategy from a configuration dictionary, extracting `callout_regex`,
         `body_selector`, `backlink_selector`, and `body_topology_location`.
@@ -46,21 +39,45 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from bs4 import BeautifulSoup
 
-from dom_normalizer.core import (
+from ..core import (
     BookStyleContext,
     EngineConfiguration,
     PipelineStatus,
 )
-from dom_normalizer.footnotes.strategies import (
+from ..core.component_registry import register_processor_factory
+from .strategies import (
+    AnomalyStrategy,
+    AriaDpubStrategy,
     BaseFootnoteStrategy,
+    ParameterizedFootnoteStrategy,
 )
-from dom_normalizer.footnotes.strategies.base_strategy import FootnoteStrategyError
+from .strategies.base_strategy import FootnoteStrategyError
+
+if TYPE_CHECKING:
+    from ..core import BookStyleContext
 
 log = logging.getLogger(__name__)
+
+
+@register_processor_factory("footnotes")
+def create_footnote_processor(
+    context: BookStyleContext,
+    **kwargs: Any,
+) -> FootnoteProcessor:
+    """Factory function to create a FootnoteProcessor instance with its strategies."""
+    strategies: list[BaseFootnoteStrategy] = [
+        AriaDpubStrategy(),
+    ]
+    patterns = getattr(context.config, "footnote_patterns", [])
+    strategies.extend(
+        ParameterizedFootnoteStrategy(config_params=pattern) for pattern in patterns
+    )
+    strategies.append(AnomalyStrategy())
+    return FootnoteProcessor(context, strategies=strategies)
 
 
 class FootnoteProcessor:
@@ -173,21 +190,18 @@ class FootnoteProcessor:
             try:
                 if result := self._apply_single_strategy(strategy, soup, all_soups):
                     return result
-            except FootnoteStrategyError as e:
+            except FootnoteStrategyError:
                 # Known, recoverable strategy-specific errors (e.g., config issues)
                 log.exception(
-                    "Footnote strategy '%s' encountered a recoverable error: %s",
+                    "Footnote strategy '%s' encountered a recoverable error",
                     strategy.__class__.__name__,
-                    e,
-                    exc_info=True,
                 )
                 continue  # Continue to next strategy
-            except Exception as e:  
+            except Exception:  
                 # Unexpected critical errors in strategy execution
                 log.critical(
-                    "Unexpected critical error in footnote strategy '%s': %s",
+                    "Unexpected critical error in footnote strategy '%s'",
                     strategy.__class__.__name__,
-                    e,
                     exc_info=True,
                 )
                 # Pass-Through Guard Clause: log and continue to next strategy

@@ -41,6 +41,7 @@ from typing import Any
 from bs4 import BeautifulSoup, Tag
 
 from ..core import BookStyleContext, PipelineStatus
+from ..core.component_registry import register_processor_factory
 from ..core.dom_utils import find_all_snapshot, get_tag_identifier, get_utc_timestamp
 from .strategies import (
     AttributePurgeStrategy,
@@ -50,6 +51,26 @@ from .strategies import (
 )
 
 log = logging.getLogger(__name__)
+
+
+@register_processor_factory("structural_sanitizer")
+def create_structural_sanitizer(
+    context: BookStyleContext,
+    **kwargs: Any,
+) -> StructuralSanitizer:
+    """Factory function to create a StructuralSanitizer instance with its strategies."""
+    inline_promoter = InlineStylePromotionStrategy(context)
+    attr_purger = AttributePurgeStrategy(context)
+    br_collapser = BrCollapseStrategy(context)
+    epilogue = EpilogueStrategy(context)
+    return StructuralSanitizer(
+        context,
+        inline_promoter=inline_promoter,
+        attr_purger=attr_purger,
+        br_collapser=br_collapser,
+        epilogue=epilogue,
+    )
+
 
 #: Tags that are iterated over as block-level nodes in the main sanitize loop.
 _BLOCK_LEVEL_TAGS = frozenset(

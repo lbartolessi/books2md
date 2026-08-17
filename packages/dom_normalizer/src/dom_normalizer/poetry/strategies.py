@@ -131,8 +131,19 @@ class HeuristicTableStrategy(BasePoetryStrategy):
     """A heuristic strategy to identify poetry formatted within a simple table."""
 
     strategy_id: str = "heuristic_table"
-    MIN_POETIC_TABLE_ROWS: int = 1
-    MAX_POETIC_TABLE_COLUMNS: int = 2
+
+    def __init__(self, context: BookStyleContext):
+        """Initializes the strategy with configuration from the context.
+
+        Args:
+            context: The shared BookStyleContext, providing access to configuration.
+        """
+        self.min_poetic_table_rows = getattr(
+            context.config, "min_poetic_table_rows", 1
+        )
+        self.max_poetic_table_columns = getattr(
+            context.config, "max_poetic_table_columns", 2
+        )
 
     def can_process(
         self,
@@ -152,13 +163,13 @@ class HeuristicTableStrategy(BasePoetryStrategy):
         if not isinstance(row_container, Tag):
             return False, "not_a_table"
         rows = row_container.find_all("tr", recursive=False)
-        if len(rows) < self.MIN_POETIC_TABLE_ROWS:
+        if len(rows) < self.min_poetic_table_rows:
             return False, "not_enough_rows"
 
         # Since we've already confirmed there are no <th> tags, we only need
         # to count <td> tags per row to check the column constraint.
         if any(
-            len(row.find_all("td", recursive=False)) > self.MAX_POETIC_TABLE_COLUMNS
+            len(row.find_all("td", recursive=False)) > self.max_poetic_table_columns
             for row in rows
         ):
             return False, "too_many_columns"

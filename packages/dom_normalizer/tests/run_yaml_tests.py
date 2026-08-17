@@ -29,18 +29,17 @@ if project_root not in sys.path:
 
 import yaml
 from bs4 import BeautifulSoup, Tag
-from src.dom_normalizer.blockquote_processor.epigraph_strategy import (
-    EpigraphStrategy,
-)
-from src.dom_normalizer.blockquote_processor.foreign_block_strategy import (
-    ForeignBlockStrategy,
-)
-from src.dom_normalizer.blockquote_processor.poetic_quote_strategy import (
-    PoeticQuoteStrategy,
-)
-from src.dom_normalizer.blockquote_processor.prose_quote_strategy import (
-    ProseQuoteStrategy,
-)
+
+# NEW: Import all components to populate the registry.
+try:
+    from src.dom_normalizer import (
+        components,  # pyright: ignore[reportUnusedImport] # noqa: F401
+    )
+    from src.dom_normalizer.core.component_registry import create_processor
+except ImportError as e:
+    print(f"\033[91mFailed to import core components: {e}\033[0m")
+    sys.exit(1)
+
 from src.dom_normalizer.core.context import (
     BookStyleContext as RealBookStyleContext,
 )
@@ -54,23 +53,6 @@ from src.dom_normalizer.core.lang_codes import ISOLanguageCode
 from src.dom_normalizer.core.media_utils import (
     MIME_TO_EXTENSION_MAP,
     normalize_extension,
-)
-from src.dom_normalizer.footnotes.strategies import (
-    AnomalyStrategy,
-    AriaDpubStrategy,
-    NativeConventionFootnoteStrategy,
-    ParameterizedFootnoteStrategy,
-)
-from src.dom_normalizer.lists.strategies import (
-    FusionStrategy,
-    ReconstructionStrategy,
-    SanitizationStrategy,
-)
-from src.dom_normalizer.structural_sanitizer.strategies import (
-    AttributePurgeStrategy,
-    BrCollapseStrategy,
-    EpilogueStrategy,
-    InlineStylePromotionStrategy,
 )
 
 # --- ANSI COLOR CONSTANTS ---
@@ -541,81 +523,18 @@ class MockProcessor:
         self.inline_indents_normalized += amount
 
 
-def snake_to_pascal(snake_str: str) -> str:
-    """Converts a snake_case string to PascalCase.
-
-    Handles cases like 'parameterized_footnote_strategy' -> 'ParameterizedFootnoteStrategy'.
-    """
-    # This simple capitalization works for most cases.
-    return "".join(x.capitalize() for x in snake_str.split("_"))
-
-
-def pascal_to_snake(name: str) -> str:
-    """Converts a PascalCase string to snake_case."""
-    return "".join(
-        [f"_{i.lower()}" if i.isupper() else i for i in name],
-    ).lstrip("_")
-
-
-def load_normalizer_class(package_name: str):
-    """
-    Dynamically imports the module and extracts the corresponding normalizer class.
-    Assumes project structure: src.dom_normalizer.<package_name>.<PascalCaseClass>
-    """
-    module_path = f"src.dom_normalizer.{package_name}"
-    class_name = snake_to_pascal(package_name)
-    try:
-        module = importlib.import_module(module_path)
-    except ModuleNotFoundError as exc:
-        raise ImportError(f"Could not import module {module_path}") from exc
-
-    try:
-        return getattr(module, class_name)
-    except AttributeError as e:
-        # Heuristic 1: Try singular form + "Processor" for plural package names
-        # e.g., 'footnotes' -> 'Footnotes' -> 'Footnote' -> 'FootnoteProcessor'
-        tried_names = {class_name}
-        if class_name.endswith("s"):
-            singular_name = class_name.rstrip("s")
-            for suffix in ["Normalizer", "Processor"]:
-                alt_class_name = f"{singular_name}{suffix}"
-                tried_names.add(alt_class_name)
-                # First, try to get the class from the package's __init__
-                try:
-                    return getattr(module, alt_class_name)
-                except AttributeError:
-                    # If not found, try to import a submodule with a conventional name
-                    # e.g., for 'footnotes' package, look in 'footnote_processor.py'
-                    processor_module_name = f"{singular_name.lower()}_processor"
-                    tried_names.add(
-                        f"{module_path}.{processor_module_name}.{alt_class_name}",
-                    )
-                    with contextlib.suppress(ImportError, AttributeError):
-                        submodule_path = f"{module_path}.{processor_module_name}"
-                        submodule = importlib.import_module(submodule_path)
-                        if hasattr(submodule, alt_class_name):
-                            return getattr(submodule, alt_class_name)
-                    continue  # Try next suffix
-
-        # Heuristic 2: Try appending standard suffixes to the package name
-        for suffix in ["Processor", "Normalizer", "Purger"]:
-            alt_class_name = f"{class_name}{suffix}"
-            tried_names.add(alt_class_name)
-            with contextlib.suppress(AttributeError):
-                return getattr(module, alt_class_name)
-
-        # If all heuristics fail, raise a comprehensive error
-        raise ImportError(
-            f"Could not find a suitable class in {module_path}. Tried: {', '.join(sorted(tried_names))}",
-        ) from e
-
-
 def load_strategy_class(package_name: str, class_name_str: str):
     """
     Dynamically loads a strategy class from its corresponding module file.
     Assumes the module file is the snake_case version of the class name.
     """
-    module_file_name = pascal_to_snake(class_name_str)
+    # This helper is now only used for strategies, which have a simpler structure.
+    # We can simplify the loading logic.
+    # Convert PascalCase to snake_case for the module filename
+    module_file_name = "".join(
+        [f"_{i.lower()}" if i.isupper() else i for i in class_name_str],
+    ).lstrip("_")
+
     # Attempt 1: Direct path
     module_path_1 = f"src.dom_normalizer.{package_name}.{module_file_name}"
     attempted_paths = [module_path_1]
@@ -948,45 +867,6 @@ def _dispatch_strategy_execution(
         )
 
 
-def _run_media_processor_test(
-    processor_class: Any,
-    context: MockBookStyleContext,
-    soup: BeautifulSoup,
-    results: dict[str, Any],
-    expected_telemetry: dict[str, Any],
-) -> None:
-    """Helper to run MediaProcessor tests with I/O mocking."""
-    from pathlib import Path
-
-    with tempfile.TemporaryDirectory() as temp_dir:
-        output_dir = Path(temp_dir)
-        book_root = output_dir / "book_src"
-        book_root.mkdir()
-
-        processor_instance = processor_class(
-            context=cast(RealBookStyleContext, context),
-            book_base_name=context.book_base_name,
-            output_directory=str(output_dir),
-            book_root_path=str(book_root),
-        )
-
-        _setup_media_processor_mocks(processor_instance, context)
-
-        process_method = getattr(processor_instance, "process", None) or getattr(
-            processor_instance,
-            "sanitize",
-            None,
-        )
-        if not process_method:
-            raise AttributeError(
-                f"Processor class {processor_class.__name__} has no 'process' or 'sanitize' method.",
-            )
-
-        process_method(soup, Path(context.file_name))
-
-        _validate_telemetry(processor_instance, expected_telemetry, results)
-
-
 def _setup_media_processor_mocks(
     processor_instance: Any,
     context: MockBookStyleContext,
@@ -1097,65 +977,6 @@ def _run_context_test(
     # No telemetry to check on the context object itself for these tests.
 
 
-def _instantiate_processor(
-    processor_class: type,
-    context: MockBookStyleContext,
-) -> Any:
-    """Instantiates a processor, handling different __init__ signatures."""
-    processor_name = processor_class.__name__
-
-    if processor_name == "StructuralSanitizer":
-        # Per review, instantiate with named keyword arguments for clarity and flexibility.
-        return processor_class(
-            context=cast(RealBookStyleContext, context),
-            inline_promoter=InlineStylePromotionStrategy(
-                cast(RealBookStyleContext, context),
-            ),
-            attr_purger=AttributePurgeStrategy(cast(RealBookStyleContext, context)),
-            br_collapser=BrCollapseStrategy(cast(RealBookStyleContext, context)),
-            epilogue=EpilogueStrategy(cast(RealBookStyleContext, context)),
-        )
-    if processor_name == "BlockquoteProcessor":
-        strategies = [
-            EpigraphStrategy(),
-            PoeticQuoteStrategy(),
-            ProseQuoteStrategy(),
-            ForeignBlockStrategy(),
-        ]
-        return processor_class(
-            cast(RealBookStyleContext, context),
-            strategies=strategies,
-        )
-    if processor_name == "FootnoteProcessor":
-        strategies = [
-            NativeConventionFootnoteStrategy(),
-            AriaDpubStrategy(),
-        ]
-        strategies.extend(
-            ParameterizedFootnoteStrategy(config_params=pattern)
-            for pattern in context.config.footnote_patterns
-        )
-        strategies.append(AnomalyStrategy())
-        return processor_class(
-            cast(RealBookStyleContext, context),
-            strategies=strategies,
-        )
-    if processor_name == "ListNormalizer":
-        strategies = [  # pylint: disable=E1120
-            ReconstructionStrategy(),  # pylint: disable=E1120
-            FusionStrategy(),  # pylint: disable=E1120
-            SanitizationStrategy(),  # pylint: disable=E1120
-        ]
-        return processor_class(
-            cast(RealBookStyleContext, context),
-            strategies=strategies,
-        )
-
-    # Default instantiation for simple processors without complex dependencies.
-    # This covers PoetryNormalizer and others that only need the context.
-    return processor_class(cast(RealBookStyleContext, context))
-
-
 def _run_processor_test(
     case: dict[str, Any],
     context: MockBookStyleContext,
@@ -1170,50 +991,89 @@ def _run_processor_test(
     else:
         context.config.footnote_patterns = []
 
-    processor_class = load_normalizer_class(package_name)
-
     expected_telemetry = case["expected"].get("telemetry", {})
-    # Special handling for MediaProcessor which requires file paths and I/O mocking
-    if processor_class.__name__ == "MediaProcessor":  # type: ignore[attr-defined]
-        _run_media_processor_test(
-            processor_class,
-            context,
+    factory_kwargs = {}
+    processor_instance = None
+
+    # Special handling for MediaProcessor which requires file paths and I/O mocking.
+    # The package name is reported as either "media" or "media_processor" depending
+    # on the suite metadata, so support both aliases to keep the file resolution
+    # tests deterministic.
+    if package_name in {"media", "media_processor"}:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            from pathlib import Path
+
+            output_dir = Path(temp_dir)
+            book_root = output_dir / "book_src"
+            book_root.mkdir()
+
+            factory_kwargs = {
+                "output_directory": str(output_dir),
+                "book_root_path": str(book_root),
+                "book_base_name": context.book_base_name,
+            }
+            processor_instance = create_processor(package_name, context, **factory_kwargs)
+            _setup_media_processor_mocks(processor_instance, context)
+
+            # Execute the process method within the temp dir context
+            _execute_and_validate_processor(
+                processor_instance,
+                soup,
+                case,
+                results,
+                expected_telemetry,
+            )
+    else:
+        # Default instantiation for all other processors
+        processor_instance = create_processor(package_name, context, **factory_kwargs)
+        _execute_and_validate_processor(
+            processor_instance,
             soup,
+            case,
             results,
             expected_telemetry,
         )
-    else:
-        processor_instance = _instantiate_processor(processor_class, context)
 
-        # Find the main entry point method ('process' or 'sanitize')
-        process_method = getattr(processor_instance, "process", None) or getattr(
-            processor_instance,
-            "sanitize",
-            None,
+
+def _execute_and_validate_processor(
+    processor_instance: Any,
+    soup: BeautifulSoup,
+    case: dict[str, Any],
+    results: dict[str, Any],
+    expected_telemetry: dict[str, Any],
+) -> None:
+    """Helper to run the process method and validate telemetry."""
+    # Find the main entry point method ('process' or 'sanitize')
+    process_method = getattr(processor_instance, "process", None) or getattr(
+        processor_instance,
+        "sanitize",
+        None,
+    )
+    if not process_method:
+        raise AttributeError(
+            f"Processor class {processor_instance.__class__.__name__} has no 'process' or 'sanitize' method.",
         )
-        if not process_method:
-            raise AttributeError(
-                f"Processor class {processor_class.__name__} has no 'process' or 'sanitize' method.",
-            )
 
-        # Get context_spec for special argument handling
-        context_spec = case.get("context", {})
+    # Get context_spec for special argument handling
+    context_spec = case.get("context", {})
 
-        # Call the process method with the correct signature
-        from pathlib import Path
+    # Call the process method with the correct signature
+    from pathlib import Path
 
-        sig = inspect.signature(process_method)
-        kwargs = {}
-        if "file_path" in sig.parameters:
-            kwargs["file_path"] = Path(context.file_name)
-        if "is_new_book_or_document" in sig.parameters:
-            kwargs["is_new_book_or_document"] = context_spec.get(
-                "is_new_book_or_document", False
-            )
+    sig = inspect.signature(process_method)
+    kwargs = {}
+    if "file_path" in sig.parameters:
+        context = cast(MockBookStyleContext, processor_instance.context)
+        kwargs["file_path"] = Path(context.file_name)
+    if "is_new_book_or_document" in sig.parameters:
+        kwargs["is_new_book_or_document"] = context_spec.get(
+            "is_new_book_or_document",
+            False,
+        )
 
-        process_method(soup, **kwargs)
-        # After mutation, validate telemetry against the processor instance
-        _validate_telemetry(processor_instance, expected_telemetry, results)
+    process_method(soup, **kwargs)
+    # After mutation, validate telemetry against the processor instance
+    _validate_telemetry(processor_instance, expected_telemetry, results)
 
 
 def run_single_test_case(

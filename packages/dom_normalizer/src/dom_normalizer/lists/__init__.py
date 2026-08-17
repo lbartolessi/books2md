@@ -1,5 +1,4 @@
-"""A normalization engine for identifying and restructuring list-like structures."""
+"""A structural reconstruction and consolidation engine for semantic lists."""
 
-from .processor import ListNormalizer
-
-__all__ = ["ListNormalizer"]
+# Import the processor module to ensure its factory is registered.
+from . import processor  # pyright: ignore[reportUnusedImport] # noqa: F401

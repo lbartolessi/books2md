@@ -50,6 +50,7 @@ from bs4 import BeautifulSoup, Tag
 from bs4.element import PageElement
 
 from .core import BookStyleContext, PipelineStatus
+from .core.component_registry import register_processor_factory
 from .core.dom_utils import (
     find_all_snapshot,
     generate_processor_metadata,
@@ -59,6 +60,7 @@ from .core.dom_utils import (
 log = logging.getLogger(__name__)
 
 
+@register_processor_factory("table_normalizer")
 class TableNormalizer:
     """A forensic reconstruction and relational consolidation engine for tables.
 

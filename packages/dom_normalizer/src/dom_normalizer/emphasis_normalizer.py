@@ -67,6 +67,7 @@ from bs4 import BeautifulSoup
 from bs4.element import NavigableString, PageElement, Tag
 
 from .core import BookStyleContext, PipelineStatus
+from .core.component_registry import register_processor_factory
 from .core.dom_utils import (
     find_all_snapshot,
     generate_processor_metadata,
@@ -301,6 +302,7 @@ class _ContrastiveEmphasisHandler:
             i_grandparent.decompose()
 
 
+@register_processor_factory("emphasis_normalizer")
 class EmphasisNormalizer:
     """A semantic micro-normalizer for flattening and unifying emphasis styles."""
 

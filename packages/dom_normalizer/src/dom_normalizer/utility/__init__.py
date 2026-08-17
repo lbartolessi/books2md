@@ -17,9 +17,8 @@ produced the soup it received.
   (soups, manifest metadata, native notes location) and passes plain,
   already-resolved parameters — strings, dicts, `ISOLanguageCode` instances —
   into the processing pipeline. This preserves the library's core promise:
-  it processes `Soup` objects, indifferent to their origin, whether that
-  origin is an EPUB, an FB2, or in principle any other well-formed
-  markup source.
+  it processes `Soup` objects, indifferent to their origin, whether that origin
+  is an EPUB or, in principle, any other well-formed markup source.
 * **Ingestion Only:** This package handles reading and exposing source
   content exclusively. Output serialization (Pandoc conversion, sibling
   asset directory writing, final Markdown assembly) is out of scope and

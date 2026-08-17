@@ -1,5 +1,4 @@
-"""A structural reconstruction engine for detecting and unifying blockquotes."""
+"""A multi-strategy engine for identifying and normalizing blockquotes."""
 
-from .processor import BlockquoteProcessor
-
-__all__ = ["BlockquoteProcessor"]
+# Import the processor module to ensure its factory is registered.
+from . import processor  # pyright: ignore[reportUnusedImport] # noqa: F401

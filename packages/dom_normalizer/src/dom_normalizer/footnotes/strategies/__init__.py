@@ -9,7 +9,6 @@ from .base_strategy import (
     FootnoteStrategyError,
     normalize_href_attr,
 )
-from .native_convention_strategy import NativeConventionFootnoteStrategy
 from .parameterized_strategy import ParameterizedFootnoteStrategy
 
 __all__ = [
@@ -19,7 +18,6 @@ __all__ = [
     "AriaDpubStrategy",
     "BaseFootnoteStrategy",
     "FootnoteStrategyError",
-    "NativeConventionFootnoteStrategy",
     "ParameterizedFootnoteStrategy",
     "normalize_href_attr",
 ]

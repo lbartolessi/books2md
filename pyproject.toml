@@ -10,7 +10,6 @@ dependencies = []
 members = [
     "packages/dom_normalizer",
     "packages/md_normalizer",
-    "packages/utility",
 ]
 
 [dependency-groups]

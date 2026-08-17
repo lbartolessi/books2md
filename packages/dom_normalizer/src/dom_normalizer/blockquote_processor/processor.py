@@ -4,15 +4,39 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from bs4 import BeautifulSoup, Tag
 
 from ..core import BookStyleContext, PipelineStatus
+from ..core.component_registry import register_processor_factory
 from ..core.dom_utils import generate_processor_metadata
 from .base_strategy import BaseBlockquoteStrategy
+from .epigraph_strategy import EpigraphStrategy
+from .foreign_block_strategy import ForeignBlockStrategy
+from .poetic_quote_strategy import PoeticQuoteStrategy
+from .prose_quote_strategy import ProseQuoteStrategy
+
+if TYPE_CHECKING:
+    from ..core import BookStyleContext
 
 log = logging.getLogger(__name__)
+
+
+@register_processor_factory("blockquote_processor")
+def create_blockquote_processor(
+    context: BookStyleContext,
+    **kwargs: Any,
+) -> BlockquoteProcessor:
+    """Factory function to create a BlockquoteProcessor instance with its strategies."""
+    strategies = [
+        EpigraphStrategy(),
+        PoeticQuoteStrategy(),
+        ProseQuoteStrategy(),
+        ForeignBlockStrategy(),
+    ]
+    # This assumes BlockquoteProcessor's __init__ is `(self, context, strategies)`
+    return BlockquoteProcessor(context, strategies=strategies)
 
 
 class StrategyError(Exception):

@@ -47,9 +47,11 @@ from bs4 import BeautifulSoup, Comment, Tag
 from bs4.element import PageElement
 
 from .core import BookStyleContext, PipelineStatus
+from .core.component_registry import register_processor_factory
 from .core.dom_utils import coerce_class_list, generate_processor_metadata
 
 
+@register_processor_factory("accessibility_normalizer")
 class AccessibilityNormalizer:
     """Orchestrates the normalization of non-footnote accessibility landmarks.
 

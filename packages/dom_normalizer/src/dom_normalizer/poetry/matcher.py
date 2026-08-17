@@ -66,7 +66,7 @@ class StructuralMatcher:
             - Instance Lifecycle: Assumes this instance is scoped to a single book.
         """
         self.context = context
-        self.heuristic_table_strategy = HeuristicTableStrategy()
+        self.heuristic_table_strategy = HeuristicTableStrategy(context)
         self.heuristic_separator_strategy = HeuristicSeparatorStrategy(context)
         self.heuristic_paragraph_container_strategy = (
             HeuristicParagraphContainerStrategy(context)

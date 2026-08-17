@@ -16,10 +16,26 @@ from typing import Any
 from bs4 import BeautifulSoup
 
 from ..core import BookStyleContext, PipelineStatus
+from ..core.component_registry import register_processor_factory
 from ..core.dom_utils import generate_processor_metadata
 from .strategies import (
     BaseListStrategy,
+    FusionStrategy,
+    ReconstructionStrategy,
+    SanitizationStrategy,
 )
+
+
+@register_processor_factory("lists")
+def create_list_normalizer(context: BookStyleContext, **kwargs: Any) -> ListNormalizer:
+    """Factory function to create a ListNormalizer instance with its strategies."""
+    strategies = [
+        ReconstructionStrategy(),
+        FusionStrategy(),
+        SanitizationStrategy(),
+    ]
+    # This assumes ListNormalizer's __init__ is `(self, context, strategies)`
+    return ListNormalizer(context, strategies=strategies)
 
 
 class ListNormalizer:

@@ -1,5 +1,4 @@
-"""A normalization engine for identifying and restructuring footnotes."""
+"""A multi-strategy engine for footnote detection, isolation, and normalization."""
 
-from .footnote_processor import FootnoteProcessor
-
-__all__ = ["FootnoteProcessor"]
+# Import the processor module to ensure its factory is registered.
+from . import footnote_processor  # pyright: ignore[reportUnusedImport] # noqa: F401

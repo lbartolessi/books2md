@@ -45,6 +45,7 @@ from bs4 import BeautifulSoup
 from bs4.element import Tag
 
 from ..core import BookStyleContext, PipelineStatus
+from ..core.component_registry import register_processor_factory
 from ..core.dom_utils import (
     coerce_class_list,
     find_all_snapshot,
@@ -61,6 +62,27 @@ from ..core.media_utils import (
 from .handlers import BaseMediaHandler, get_media_handlers
 
 log = logging.getLogger(__name__)
+
+
+@register_processor_factory("media")
+@register_processor_factory("media_processor")
+def create_media_processor(
+    context: BookStyleContext,
+    **kwargs: Any,
+) -> MediaProcessor:
+    """Factory function to create a MediaProcessor instance."""
+    book_base_name = kwargs.get(
+        "book_base_name",
+        getattr(context, "book_base_name", "book"),
+    )
+    output_directory = kwargs.get("output_directory", ".")
+    book_root_path = kwargs.get("book_root_path", ".")
+    return MediaProcessor(
+        context=context,
+        book_base_name=book_base_name,
+        output_directory=output_directory,
+        book_root_path=book_root_path,
+    )
 
 
 class MediaProcessor:

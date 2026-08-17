@@ -15,10 +15,13 @@ from bs4 import BeautifulSoup
 from bs4.element import Tag
 from markdownify import MarkdownConverter
 
-from dom_normalizer.core import BookStyleContext, EngineConfiguration
-from dom_normalizer.core.dom_utils import coerce_class_list
-from dom_normalizer.core.lang_codes import ISOLanguageCode
-from dom_normalizer.poetry import PoetryNormalizer
+from packages.dom_normalizer.src.dom_normalizer.core.config import EngineConfiguration
+from packages.dom_normalizer.src.dom_normalizer.core.context import BookStyleContext
+from packages.dom_normalizer.src.dom_normalizer.core.dom_utils import coerce_class_list
+from packages.dom_normalizer.src.dom_normalizer.core.lang_codes import ISOLanguageCode
+from packages.dom_normalizer.src.dom_normalizer.poetry.normalizer import (
+    PoetryNormalizer,
+)
 
 # --- Constants ---
 PROJECT_ROOT = Path(__file__).parent.parent.parent
