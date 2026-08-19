@@ -1,11 +1,12 @@
 """A format normalization engine for mathematical expressions.
 
+import importlib
 This module operates as a Stage 2 processor. Its primary function is to
 normalize various representations of mathematical content (MathML, LaTeX in
 image attributes) into a consistent, Pandoc-compatible format. This ensures
 that mathematical expressions are both visually preserved and semantically
 structured for downstream processing by RAG and LLM systems.
-
+ 
 The processor handles two main cases:
 1.  **Pure MathML (`<math>` tags):** Converts MathML into LaTeX strings using
     an XSLT transformation and wraps them in appropriate `<div>` or `<span>`
@@ -50,31 +51,23 @@ from bs4.element import NavigableString
 
 from .core import BookStyleContext, PipelineStatus
 from .core.component_registry import register_processor_factory
+from .core.config import EngineConfiguration
 from .core.dom_utils import (
-    BLOCK_LEVEL_TAGS,
     find_all_snapshot,
     generate_processor_metadata,
 )
 
 log = logging.getLogger(__name__)
-
 # Conditional import of lxml for XSLT transformations.
 try:
     _etree_module = importlib.import_module("lxml.etree")
     lxml_available = True
-    _lxml_error_class = _etree_module.LxmlError
+    _lxml_error_class = getattr(_etree_module, "LxmlError", Exception)
 except ImportError:
     lxml_available = False
     _etree_module = None  # Placeholder for type hinting
     _lxml_error_class = Exception  # Fallback if lxml is not available
 
-_MATH_RELATED_TAGS: Final[frozenset[str]] = frozenset(
-    {
-        "math",
-        "img",
-        "svg",
-    },
-)
 
 
 @register_processor_factory("math_processor")
@@ -102,15 +95,12 @@ class MathProcessor:
     # LaTeX structural tokens for validating 'alt' attribute content.
     LATEX_ALT_VALIDATION_TOKENS: Final[tuple[str, ...]] = (
         r"\frac",
-        r"\int",
-        r"\alpha",
         r"^{",
         r"_{",
         r"\vec",
         r"\sum",
     )
     # Minimum character length for a string to be considered valid LaTeX.
-    MIN_LATEX_LENGTH: Final[int] = 3
 
     def __init__(self, context: BookStyleContext) -> None:
         """Initializes the math processor and its dependencies.
@@ -145,6 +135,7 @@ class MathProcessor:
             - `_initialize_xslt_transformer`: To load and compile the XSLT stylesheet.
         """
         self.context = context
+        self.config: EngineConfiguration = context.config
         self.equations_converted: int = 0
         self.hybrid_blocks_created: int = 0
         self.lxml_available = lxml_available
@@ -237,7 +228,7 @@ class MathProcessor:
             if value := tag.get(attr):
                 if isinstance(value, list):
                     value = " ".join(str(v) for v in value)
-                if (stripped := str(value).strip()) and len(stripped) >= self.MIN_LATEX_LENGTH:
+                if (stripped := str(value).strip()) and len(stripped) >= self.config.min_latex_length:
                     return stripped, attr
         return None
 
@@ -286,7 +277,7 @@ class MathProcessor:
             # If strict tokens are missing, try a secondary, lighter heuristic.
             if lacks_configured_tokens and not self._looks_like_simple_latex(latex_raw):
                 return None
-
+ 
         # Prefer explicit math attributes in a stable order.
         return latex_raw
 
@@ -304,7 +295,7 @@ class MathProcessor:
         Returns:
             True if the text contains simple LaTeX cues, False otherwise.
         """
-        return any(cue in text for cue in ("\\", "^", "_", "$")) if text else False
+        return any(cue in text for cue in self.config.math_simple_latex_cues) if text else False
 
     def _convert_bs4_to_lxml(self, bs4_tag: Tag) -> Any | None:
         """Converts a BeautifulSoup Tag to an lxml element for processing.
@@ -485,7 +476,7 @@ class MathProcessor:
 
         # If the parent is not a known block-like container (e.g., <span>, <em>, <strong>),
         # then the math element should be treated as inline to avoid disrupting inline flow.
-        if parent_name not in BLOCK_LEVEL_TAGS:
+        if parent_name not in self.config.block_level_tags:
             return False
 
         # If the parent is a known block-like container (e.g., <div>, <li>, <td>)
@@ -497,7 +488,7 @@ class MathProcessor:
 
         # If the parent is a <p> tag, apply the "only significant content" rule.
         # This rule applies only to math-related tags.
-        if tag.name not in _MATH_RELATED_TAGS:
+        if tag.name not in self.config.math_related_tags:
             return False  # Default to inline if not a math-related tag
 
         return self._is_only_significant_content(parent, tag)
@@ -535,9 +526,12 @@ class MathProcessor:
             return False
 
         is_block = self._is_block_level(math_tag)
-        wrapper_class = "math-block" if is_block else "math-inline"
+        wrapper_class = (
+            self.config.math_block_class if is_block else self.config.math_inline_class
+        )
         # Do not inject extra spaces inside delimiters to preserve formatting.
-        formatted_latex = f"$${stripped_latex}$$" if is_block else f"${stripped_latex}$"
+        delimiters = self.config.math_block_delimiters if is_block else self.config.math_inline_delimiters
+        formatted_latex = f"{delimiters[0]}{stripped_latex}{delimiters[1]}"
         wrapper_tag = soup.new_tag(
             "div" if is_block else "span",
             attrs={"class": wrapper_class},
@@ -653,8 +647,8 @@ class MathProcessor:
             soup: The root BeautifulSoup object for creating new tags.
         """
         if self._is_block_level(img_tag):
-            wrapper_tag = soup.new_tag("div", attrs={"class": "math-block"})
-            formatted_latex = f"$${latex_str}$$"
+            wrapper_tag = soup.new_tag("div", attrs={"class": self.config.math_block_class})
+            delimiters = self.config.math_block_delimiters
             parent = img_tag.parent
             # If the image is the only significant content in a <p>, replace the
             # entire paragraph to maintain block-level semantics and avoid
@@ -670,10 +664,11 @@ class MathProcessor:
                 img_tag.replace_with(wrapper_tag)
                 wrapper_tag.append(img_tag)
         else:
-            wrapper_tag = soup.new_tag("span", attrs={"class": "math-inline"})
-            formatted_latex = f"${latex_str}$"
+            wrapper_tag = soup.new_tag("span", attrs={"class": self.config.math_inline_class})
+            delimiters = self.config.math_inline_delimiters
             img_tag.wrap(wrapper_tag)
 
+        formatted_latex = f"{delimiters[0]}{latex_str}{delimiters[1]}"
         wrapper_tag.append(NavigableString(formatted_latex))
         self.hybrid_blocks_created += 1
 

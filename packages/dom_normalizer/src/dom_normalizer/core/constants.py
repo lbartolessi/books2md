@@ -3,6 +3,8 @@
 import re
 from typing import Final
 
+from .config import EngineConfiguration
+
 # --- Page Marker Patterns ---
 # Spanish page markers (e.g., "pág.", "página").
 _SPANISH_PAGE_MARKERS: Final[str] = r"pág(?:ina)?\.?"
@@ -15,8 +17,6 @@ PAGE_MARKER_RX: Final[re.Pattern[str]] = re.compile(
     rf"^(?:page|{_SPANISH_PAGE_MARKERS})\s+\d+$",
     re.IGNORECASE,
 )
-
-MIN_VIABLE_LIST_ITEMS: Final[int] = 2
 
 # --- Canonical Class Names ---
 FLOATING_ELEMENT_CLASS: Final[str] = "floating-element"
@@ -35,16 +35,23 @@ CODE_CLASSES: Final[frozenset[str]] = frozenset(
 # dialogue patterns like '—Hello' or "—Hello".
 # Example matches: "—Hello", " — Hello", "«—Hola»".
 DIALOGUE_DASH_RX: Final[re.Pattern[str]] = re.compile(
-    r"^\s*[«“‹‘„\"\']?\s*[\u2014\u2013-]",  # noqa: RUF001 # NOSONAR
+    r"^\s*[«“‹‘„\"\']?\s*[\u2014\u2013-]",  # NOSONAR
 )
 
 # Accented uppercase characters for Latin-based languages (e.g., Spanish, French).
 _LATIN_ACCENTED_UPPER: Final[str] = "ÁÉÍÓÚÑÀÈÌÒÙÇ"
 
-# Matches speaker labels in scripts (e.g., "HAMLET:", "JOHN.:", "ÉLODIE:").
-SPEAKER_LABEL_RX: Final[re.Pattern[str]] = re.compile(
-    rf"^\s*[A-Z{_LATIN_ACCENTED_UPPER}]{{2,30}}[.:]\s*",
-)
+
+def get_speaker_label_rx(config: EngineConfiguration) -> re.Pattern[str]:
+    """Generates a compiled regex for speaker labels based on configuration.
+
+    Matches speaker labels in scripts (e.g., "HAMLET:", "JOHN.:", "ÉLODIE:").
+    The length of the label is configurable.
+    """
+    return re.compile(
+        rf"^\s*[A-Z{_LATIN_ACCENTED_UPPER}]{{{config.min_speaker_label_length},{config.max_speaker_label_length}}}[.:]\s*",
+    )
+
 
 # Punctuation that can appear mid-line in verse without implying a full stop.
 # Used by enjambment detection heuristics.

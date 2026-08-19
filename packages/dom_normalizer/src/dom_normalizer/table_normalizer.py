@@ -51,6 +51,7 @@ from bs4.element import PageElement
 
 from .core import BookStyleContext, PipelineStatus
 from .core.component_registry import register_processor_factory
+from .core.config import EngineConfiguration
 from .core.dom_utils import (
     find_all_snapshot,
     generate_processor_metadata,
@@ -79,11 +80,6 @@ class TableNormalizer:
     semantic and structural contracts.
     """
 
-    MIN_DIV_TABLE_ROWS: int = 2
-    MIN_DIV_TABLE_COLS: int = 2
-    HEADER_PROMOTION_THRESHOLD: float = 0.5
-    MIN_TABLES_FOR_FUSION: int = 2
-
     def __init__(self, context: BookStyleContext) -> None:
         """Initializes the table normalizer with context and telemetry.
 
@@ -106,6 +102,7 @@ class TableNormalizer:
               per Global Directive #3.
         """
         self.context = context
+        self.config: EngineConfiguration = context.config
         self.tables_recovered: int = 0
         self.tables_repaired: int = 0
 
@@ -175,12 +172,12 @@ class TableNormalizer:
             ):
                 continue
 
-            rows = container.find_all("div", class_="row", recursive=False)
-            if len(rows) < self.MIN_DIV_TABLE_ROWS:
+            rows = container.find_all("div", class_="row", recursive=False) # pyright: ignore[reportUnknownArgumentType]
+            if len(rows) < self.config.min_div_table_rows:
                 continue
 
-            first_row_cells = rows[0].find_all("div", class_="cell", recursive=False)
-            if len(first_row_cells) < self.MIN_DIV_TABLE_COLS:
+            first_row_cells = rows[0].find_all("div", class_="cell", recursive=False) # pyright: ignore[reportUnknownArgumentType]
+            if len(first_row_cells) < self.config.min_div_table_cols:
                 continue
 
             new_table = soup.new_tag("table")
@@ -208,11 +205,9 @@ class TableNormalizer:
 
     def _recover_orphan_trs(self, soup: BeautifulSoup) -> None:
         """Wraps orphan <tr> elements in a proper table structure."""
-        valid_table_parents = {"tbody", "thead", "tfoot", "table"}
         # Only wrap orphan <tr> tags found in common block-level containers.
         # This prevents mutating valid, non-tabular layouts that might use <tr>
         # for custom components (e.g., inside <template> or other elements).
-        allowed_orphan_contexts = {"body", "div", "section", "article", "main"}
         for tr_tag in find_all_snapshot(soup, "tr"):
             if not isinstance(tr_tag, Tag) or self.context.is_inside_literal_code_tag(
                 tr_tag,
@@ -224,11 +219,11 @@ class TableNormalizer:
                 continue
 
             # If the parent is a valid table part, it's not an orphan.
-            if parent.name in valid_table_parents:
+            if parent.name in self.config.table_valid_parents:
                 continue
 
             # If the parent is a safe context for an orphan, wrap it.
-            if parent.name in allowed_orphan_contexts:
+            if parent.name in self.config.table_orphan_tr_contexts:
                 table = soup.new_tag("table")
                 tbody = soup.new_tag("tbody")
                 table.append(tbody)
@@ -256,7 +251,8 @@ class TableNormalizer:
 
         bold_cells = sum(bool(cell.find("b") or cell.find("strong")) for cell in cells)
         promotion_ratio = bold_cells / len(cells)
-        return promotion_ratio > self.HEADER_PROMOTION_THRESHOLD
+        return promotion_ratio > self.config.header_promotion_threshold
+
 
     def _promote_to_header(self, row: Tag, table: Tag, soup: BeautifulSoup) -> None:
         """Promotes a table row to a <thead>, converting cells to <th>.
@@ -361,7 +357,7 @@ class TableNormalizer:
             - May trigger a fusion via `_try_fuse_with_next`, which modifies the DOM.
         """
         tables = find_all_snapshot(soup, "table")
-        if len(tables) < self.MIN_TABLES_FOR_FUSION:
+        if len(tables) < self.config.min_tables_for_fusion:
             return False
 
         for table_a in tables:
@@ -465,7 +461,7 @@ class TableNormalizer:
 
         while current_node:
             # Delegate primary decision to is_ignorable_node
-            if is_ignorable_node(current_node):
+            if is_ignorable_node(current_node, self.config):
                 noise_elements.append(current_node)
                 current_node = current_node.next_sibling
                 continue

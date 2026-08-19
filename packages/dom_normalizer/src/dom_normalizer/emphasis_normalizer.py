@@ -68,6 +68,7 @@ from bs4.element import NavigableString, PageElement, Tag
 
 from .core import BookStyleContext, PipelineStatus
 from .core.component_registry import register_processor_factory
+from .core.config import EngineConfiguration
 from .core.dom_utils import (
     find_all_snapshot,
     generate_processor_metadata,
@@ -306,8 +307,6 @@ class _ContrastiveEmphasisHandler:
 class EmphasisNormalizer:
     """A semantic micro-normalizer for flattening and unifying emphasis styles."""
 
-    MAX_FLATTEN_PASSES: int = 10
-
     def __init__(self, context: BookStyleContext) -> None:
         """Initializes the EmphasisNormalizer with book context and state.
 
@@ -337,8 +336,8 @@ class EmphasisNormalizer:
         self.semantic_resets_triggered: int = 0
         self.nesting_fixes_count: int = 0
         # Defer to a configuration flag. This is disabled by default as the
-        # feature is not fully implemented.
-        self.config = context.config
+        # feature is not fully implemented. Explicitly type hint config.
+        self.config: EngineConfiguration = context.config
         self.contrastive_detection_disabled = not getattr(
             self.config,
             "enable_contrastive_emphasis",
@@ -500,7 +499,7 @@ class EmphasisNormalizer:
         Returns:
             None
 
-        Raises:
+        Raises: # pyright: ignore[reportUnusedMethod]
             None
 
         Rules & Limits:
@@ -510,7 +509,7 @@ class EmphasisNormalizer:
             soup (BeautifulSoup): The BeautifulSoup object to modify.
             tag_name (str): The name of the tag to flatten (e.g., 'i' or 'b').
         """
-        for passes_count in range(self.MAX_FLATTEN_PASSES):
+        for passes_count in range(self.config.max_flatten_passes):
             # Find all instances of a tag nested inside another tag of the same name.
             # Use the direct child selector '>' to avoid complex descendant issues
             # that can lead to infinite loops with unwrap().
@@ -537,10 +536,10 @@ class EmphasisNormalizer:
 
         # If the loop completes without returning, it means we hit the pass limit.
         log.warning(
-            "Emphasis Normalizer: Flattening for <%s> tags reached max passes (%d). "
+            "Emphasis Normalizer: Flattening for <%s> tags reached max passes (%d). " # pyright: ignore[reportUnknownArgumentType]
             "There may be remaining nested tags.",
             tag_name,
-            self.MAX_FLATTEN_PASSES,
+            self.config.max_flatten_passes,
         )
 
     # endregion

@@ -100,10 +100,6 @@ class ForensicPatternAnalyzer:
             access to global configuration.
     """
 
-    # A note body cluster is considered to be in a single "donor file" if at
-    # least 80% of the resolved note bodies are found in that file.
-    DONOR_FILE_DENSITY_THRESHOLD: float = 0.8
-
     def __init__(self, context: BookStyleContext) -> None:
         """Initializes the forensic engine with the book's context.
 
@@ -238,7 +234,9 @@ class ForensicPatternAnalyzer:
         structural_group: list[Tag],
     ) -> None:
         """Stage 5: Final validation of the entire system's symmetry."""
-        if not validated_pairs or (len(validated_pairs) < len(structural_group) * 0.5):
+        if not validated_pairs or (
+            len(validated_pairs) < len(structural_group) * self.context.config.footnote_symmetry_threshold
+        ):
             raise ForensicAnalysisError(
                 ForensicFailure.SYMMETRY_CHECK_FAILED.value.format(
                     validated_count=len(validated_pairs),
@@ -269,8 +267,8 @@ class ForensicPatternAnalyzer:
         for file_key, soup in soups.items():
             for tag in soup.find_all(id=True):
                 if isinstance(tag, Tag):
-                    tag_id = str(tag["id"])
-                    if tag.name in {"h1", "h2", "h3"}:
+                    tag_id = str(tag["id"]) # pyright: ignore[reportUnknownArgumentType]
+                    if tag.name in self.context.config.footnote_toc_heading_tags:
                         toc_target_ids.add(tag_id)
 
                     if (
@@ -630,7 +628,9 @@ class ForensicPatternAnalyzer:
 
         total_bodies = len(resolved_bodies)
         for count in file_distribution.values():
-            if count / total_bodies >= self.DONOR_FILE_DENSITY_THRESHOLD:
+            if (
+                count / total_bodies >= self.context.config.footnote_donor_file_density_threshold
+            ):
                 return "donor_file", resolved_bodies
 
         raise ForensicAnalysisError(ForensicFailure.NO_CLEAR_TOPOLOGY)

@@ -39,68 +39,6 @@ PROCESSOR_UNBOUND_MSG: Final[str] = (
     "Strategy has not been bound to a processor instance."
 )
 
-#: Legacy presentational attributes to be purged and persisted for forensics.
-_LEGACY_ATTRS_TO_PURGE = frozenset(["align", "bgcolor"])
-
-#: Layout-related CSS properties to be purged from general elements in Step 3.
-_GENERAL_LAYOUT_PROPS_TO_PURGE = frozenset(
-    ["margin-left", "padding-left", "float", "position", "background-color"],
-)
-
-#: Layout-related CSS properties to be purged from `blockquote-element` nodes
-#: in the epilogue. This includes all indentation properties.
-_BLOCKQUOTE_LAYOUT_PROPS_TO_PURGE = frozenset(
-    [
-        "margin",
-        "margin-top",
-        "margin-right",
-        "margin-bottom",
-        "margin-left",
-        "padding",
-        "padding-top",
-        "padding-right",
-        "padding-bottom",
-        "padding-left",
-        "float",
-        "position",
-    ],
-)
-
-#: Tags that are considered renderable content even if they contain no text.
-_MEDIA_TAGS = frozenset(
-    ["img", "svg", "video", "audio", "picture", "source", "canvas", "iframe", "math"],
-)
-
-#: Tags that are eligible for removal if they are deemed structurally empty.
-_PURGEABLE_EMPTY_TAGS = frozenset(
-    [
-        "p",
-        "div",
-        "span",
-        "em",
-        "strong",
-        "i",
-        "b",
-        "u",
-        "font",
-        "a",
-        "h1",
-        "h2",
-        "h3",
-        "h4",
-        "h5",
-        "h6",
-        "blockquote",
-        "pre",
-        "li",
-        "td",
-        "th",
-    ],
-)
-
-#: Minimum number of classes a node must have to trigger sorting.
-_MIN_CLASSES_FOR_SORTING = 2
-
 
 class BaseStrategy:
     """Base class for all sanitizer strategies, providing context."""
@@ -173,7 +111,7 @@ class AttributePurgeStrategy(NodeStrategy):
     def _purge_legacy_attributes(self, node: Tag) -> bool:
         """Scrubs legacy presentational attributes."""
         purged = False
-        for attr in _LEGACY_ATTRS_TO_PURGE:
+        for attr in self.context.config.sanitizer_legacy_attrs_to_purge:
             if node.has_attr(attr):
                 value = node[attr]
                 del node[attr]
@@ -194,7 +132,7 @@ class AttributePurgeStrategy(NodeStrategy):
 
         cleaned_style = strip_css_properties(
             original_style,
-            _GENERAL_LAYOUT_PROPS_TO_PURGE,
+            self.context.config.sanitizer_general_layout_props_to_purge,
         )
         if cleaned_style == original_style:
             return False
@@ -211,7 +149,7 @@ class AttributePurgeStrategy(NodeStrategy):
             return
 
         classes = coerce_class_list(node.get("class"))
-        if len(classes) < _MIN_CLASSES_FOR_SORTING:
+        if len(classes) < self.context.config.sanitizer_min_classes_for_sorting:
             return
 
         def sort_key(c: str) -> tuple[int, str]:
@@ -338,17 +276,19 @@ class EpilogueStrategy(DocumentStrategy):
             if not node.has_attr("style"):
                 continue
             if original_style := normalize_style_attribute(node.get("style")):
-                if cleaned_style := strip_css_properties(
+                if cleaned_style := strip_css_properties( # pyright: ignore[reportUnnecessaryComparison]
                     original_style,
-                    _BLOCKQUOTE_LAYOUT_PROPS_TO_PURGE,
-                ):
-                    node["style"] = cleaned_style
+                    self.context.config.sanitizer_blockquote_layout_props_to_purge,
+                ): # pyright: ignore[reportUnnecessaryComparison]
+                        node["style"] = cleaned_style
                 elif "style" in node.attrs:
                     del node["style"]
 
     def _epilogue_purge_empty_nodes(self, soup: BeautifulSoup) -> None:
         """Epilogue Pass 3: Removes dead, structurally empty elements."""
-        nodes_to_check = find_all_snapshot(soup, _PURGEABLE_EMPTY_TAGS)
+        nodes_to_check = find_all_snapshot(
+            soup, list(self.context.config.sanitizer_purgeable_empty_tags)
+        )
         for node in reversed(nodes_to_check):
             if (
                 node.parent is not None
@@ -407,6 +347,6 @@ class EpilogueStrategy(DocumentStrategy):
             True
             if node.get_text(strip=True)
             else bool(
-                node.find(list(_MEDIA_TAGS)),
+                node.find(list(self.context.config.media_tags)),
             )
         )

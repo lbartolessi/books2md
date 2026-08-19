@@ -23,16 +23,6 @@ _STANDARD_WHITESPACE_PATTERN_RX: Final[re.Pattern[str]] = re.compile(r"[ \t\n\r\
 class PoetryIndentationHelper:
     """Helper for calculating indentation and detecting renderable text in poetry blocks."""
 
-    _INDENT_PATTERN_RX: Final[re.Pattern[str]] = re.compile(
-        r"""
-        (?P<prop>margin-left|padding-left|text-indent)   # property name
-        \s*:\s*                                           # optional whitespace around colon
-        (?P<value>[+-]?\d+(?:\.\d*)?)                     # numeric value (int or float)
-        \s*(?P<unit>em|rem|px|%)                          # unit
-        """,
-        re.IGNORECASE | re.VERBOSE,
-    )
-
     def __init__(self, context: BookStyleContext):
         """Initializes the helper with configuration for indentation and heuristics.
 
@@ -47,6 +37,21 @@ class PoetryIndentationHelper:
         self.nbsp_to_indent_ratio = context.config.poetry_nbsp_to_indent_ratio
         self.max_nbsp_depth = context.config.poetry_max_nbsp_depth
         self.indentation_tag_whitelist = context.config.poetry_indentation_tag_whitelist
+        self.indentation_properties = context.config.poetry_indentation_properties
+        self.indentation_units = context.config.poetry_indentation_units
+
+        props_group = "|".join(re.escape(p) for p in self.indentation_properties)
+        units_group = "|".join(re.escape(u) for u in self.indentation_units)
+
+        self._indent_pattern_rx: Final[re.Pattern[str]] = re.compile(
+            fr"""
+            (?P<prop>{props_group})   # property name
+            \s*:\s*                                           # optional whitespace around colon
+            (?P<value>[+-]?\d+(?:\.\d*)?)                     # numeric value (int or float)
+            \s*(?P<unit>{units_group})                          # unit
+            """,
+            re.IGNORECASE | re.VERBOSE,
+        )
 
     def _parse_indent_from_style(self, style_str: str) -> int:
         """Parses a style string and calculates a cumulative indent level.
@@ -62,7 +67,7 @@ class PoetryIndentationHelper:
             if not (declaration := declaration.strip()):
                 continue
 
-            if not (match := self._INDENT_PATTERN_RX.search(declaration)):
+            if not (match := self._indent_pattern_rx.search(declaration)):
                 continue
 
             val_str = match.group("value")

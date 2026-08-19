@@ -6,7 +6,6 @@ import contextlib
 import logging
 import re
 import statistics
-from typing import Final
 
 from bs4 import BeautifulSoup, Tag
 
@@ -24,15 +23,6 @@ class PoeticQuoteStrategy(BaseBlockquoteStrategy):
     sibling paragraphs to detect patterns typical of poetry, such as short lines
     with low variance in length. It is designed to distinguish verse from prose.
     """
-
-    # Minimum number of lines for a sequence to be considered poetic.
-    MIN_POETIC_LINES: Final[int] = 2
-    # Minimum character length for a line to be included in statistical analysis.
-    MIN_CONTENT_LINE_LENGTH: Final[int] = 2
-    # Maximum average line length for a poetic sequence.
-    MAX_POETIC_MEAN_LENGTH: Final[int] = 55
-    # Maximum variance in line length for a poetic sequence.
-    MAX_POETIC_VARIANCE: Final[float] = 225.0
 
     def find_and_apply(
         self,
@@ -275,12 +265,13 @@ class PoeticQuoteStrategy(BaseBlockquoteStrategy):
 
         # Filter out empty or near-empty lines before computing statistics so that
         # structural blank lines do not bias the mean/variance toward a "poetic" shape.
+        assert self.config is not None, "Config not bound to strategy"
         line_texts = [
-            text for text in raw_line_texts if len(text) >= self.MIN_CONTENT_LINE_LENGTH
+            text for text in raw_line_texts if len(text) >= self.config.poetic_quote_min_content_line_length
         ]
 
         # If filtering removes too many lines, treat the sequence as non-poetic.
-        if len(line_texts) < self.MIN_POETIC_LINES:
+        if len(line_texts) < self.config.poetic_quote_min_lines:
             return None
 
         return sequence if self._meets_statistical_criteria(line_texts) else None
@@ -295,7 +286,8 @@ class PoeticQuoteStrategy(BaseBlockquoteStrategy):
             True if the sequence has a short mean line length and low variance,
             False otherwise.
         """
-        if len(line_texts) < self.MIN_POETIC_LINES:
+        assert self.config is not None, "Config not bound to strategy"
+        if len(line_texts) < self.config.poetic_quote_min_lines:
             return False
 
         line_lengths = [len(text) for text in line_texts]
@@ -305,6 +297,6 @@ class PoeticQuoteStrategy(BaseBlockquoteStrategy):
         variance = statistics.pvariance(line_lengths) if len(line_lengths) > 1 else 0.0
 
         return (
-            mean_length <= self.MAX_POETIC_MEAN_LENGTH
-            and variance <= self.MAX_POETIC_VARIANCE
+            mean_length <= self.config.poetic_quote_max_mean_length
+            and variance <= self.config.poetic_quote_max_variance
         )

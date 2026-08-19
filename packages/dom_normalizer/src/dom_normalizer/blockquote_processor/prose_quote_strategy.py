@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Final
 
 from bs4 import BeautifulSoup, Tag
 
@@ -22,17 +21,6 @@ class ProseQuoteStrategy(BaseBlockquoteStrategy):
     that are visually set apart from the main narrative by a consistent left
     indentation, a common method for formatting blockquotes in prose.
     """
-
-    MIN_INDENT_EM: Final[float] = 1.5
-    MIN_INDENT_PX: Final[int] = 20  # Aligned with 1.5em * 16px/em from core.py
-    MIN_INDENT_PERCENT: Final[int] = 5
-    MIN_INDENT_PT: Final[float] = 6.0
-    MIN_INDENT_CM: Final[float] = 0.2
-
-    # Conversion factors for flexible indent matching
-    PX_PER_EM: Final[float] = 16.0
-    PX_PER_PT: Final[float] = 4.0 / 3.0
-    PX_PER_CM: Final[float] = 96.0 / 2.54
 
     def _strip_indent_style(self, node: Tag) -> None:
         """Removes the style attribute from a node unconditionally.
@@ -199,13 +187,14 @@ class ProseQuoteStrategy(BaseBlockquoteStrategy):
 
         value, unit = parsed_indent
 
+        assert self.config is not None, "Config not bound to strategy"
         thresholds = {
-            "em": self.MIN_INDENT_EM,
-            "rem": self.MIN_INDENT_EM,
-            "px": self.MIN_INDENT_PX,
-            "%": self.MIN_INDENT_PERCENT,
-            "pt": self.MIN_INDENT_PT,
-            "cm": self.MIN_INDENT_CM,
+            "em": self.config.prose_quote_min_indent_em,
+            "rem": self.config.prose_quote_min_indent_em,
+            "px": self.config.prose_quote_min_indent_px,
+            "%": self.config.prose_quote_min_indent_percent,
+            "pt": self.config.prose_quote_min_indent_pt,
+            "cm": self.config.prose_quote_min_indent_cm,
         }
 
         min_value = thresholds.get(unit)

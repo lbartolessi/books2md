@@ -22,8 +22,6 @@ class ForeignBlockStrategy(BaseBlockquoteStrategy):
     capturing long quotations in another language.
     """
 
-    MIN_FOREIGN_LENGTH: int = 25
-
     def find_and_apply(
         self,
         start_node: Tag,
@@ -168,10 +166,11 @@ class ForeignBlockStrategy(BaseBlockquoteStrategy):
             - Sibling Traversal: Safely traverses `previous_sibling` and
               `next_sibling` to find the full sequence.
         """
+        assert self.config is not None, "Config not bound to strategy"
         if (
             start_node.name != "p"
             or start_node.find_parent("blockquote")
-            or len(start_node.get_text(strip=True)) < self.MIN_FOREIGN_LENGTH
+            or len(start_node.get_text(strip=True)) < self.config.foreign_block_min_length
         ):
             return None
 
@@ -183,7 +182,7 @@ class ForeignBlockStrategy(BaseBlockquoteStrategy):
         first_node_in_sequence = start_node
         node_iterator = start_node
         while True:
-            prev_sibling = self._get_prev_non_ignorable_sibling(node_iterator)
+            prev_sibling = self._get_prev_non_ignorable_sibling(node_iterator) # pyright: ignore[reportOptionalOperand]
             if (
                 not prev_sibling
                 or prev_sibling.name not in {"p", "div"}
@@ -201,6 +200,6 @@ class ForeignBlockStrategy(BaseBlockquoteStrategy):
             and self._get_foreign_lang(node_iterator, context) == foreign_lang
         ):
             sequence.append(node_iterator)
-            node_iterator = self._get_next_non_ignorable_sibling(node_iterator)
+            node_iterator = self._get_next_non_ignorable_sibling(node_iterator) # pyright: ignore[reportOptionalOperand]
 
         return sequence

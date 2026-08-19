@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Global Pytest Configuration and Fixtures
 =========================================
@@ -21,3 +20,4 @@ def assert_html_equal():
         assert actual_soup.prettify() == expected_soup.prettify()
 
     return _assert_html_equal
+ 

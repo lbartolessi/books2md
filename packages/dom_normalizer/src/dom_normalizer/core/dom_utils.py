@@ -15,52 +15,9 @@ from typing import Any, Final, cast
 from bs4 import BeautifulSoup
 from bs4.element import NavigableString, PageElement, Tag
 
+from .config import EngineConfiguration
 from .constants import PAGE_MARKER_RX
 from .status import PipelineStatus
-
-# A curated set of tags considered to have renderable, non-textual content.
-# This is used by `is_ignorable_node` to prevent purging tags that are
-# visually present but may lack text (e.g., `<img>`, `<svg>`).
-_MEDIA_TAGS: Final[frozenset[str]] = frozenset(
-    ["img", "svg", "video", "audio", "picture", "source", "canvas", "iframe", "math"],
-)
-
-BLOCK_LEVEL_TAGS: Final[frozenset[str]] = frozenset(
-    {
-        "p",
-        "div",
-        "section",
-        "article",
-        "li",
-        "ul",
-        "ol",
-        "dl",
-        "dt",
-        "dd",
-        "table",
-        "thead",
-        "tbody",
-        "tfoot",
-        "tr",
-        "td",
-        "th",
-        "figure",
-        "header",
-        "footer",
-        "aside",
-        "blockquote",
-        "hr",
-    },
-)
-
-# Prefixes and names of attributes considered semantically significant, even if the
-# tag has no visible content. Used by `is_ignorable_node`.
-# NOTE: All attributes starting with these prefixes (e.g., any `aria-*` or `data-*`)
-# are treated as semantically significant, even if they are not standard ARIA/data
-# attributes. This is intentionally broad to avoid accidentally discarding nodes
-# that may carry meaning for consumers of the DOM.
-_SEMANTIC_ATTR_PREFIXES: Final[tuple[str, ...]] = ("aria-", "data-")
-_SEMANTIC_ATTRS: Final[frozenset[str]] = frozenset(["role"])
 
 # A translation table for `str.translate` to efficiently replace special
 # whitespace characters with a standard space.
@@ -110,7 +67,7 @@ def is_page_marker_noise(text: str | None) -> bool:
     return _is_page_marker_pattern(cleaned_text)
 
 
-def _has_semantic_attributes(node: Tag) -> bool:
+def _has_semantic_attributes(node: Tag, config: EngineConfiguration) -> bool:
     """Checks if a tag has attributes that are considered semantically significant.
 
     This helper intentionally treats any attribute starting with the configured
@@ -133,14 +90,14 @@ def _has_semantic_attributes(node: Tag) -> bool:
         None
     """
     return any(
-        attr in _SEMANTIC_ATTRS
+        attr in config.semantic_attrs
         # Efficiently check if the attribute starts with any of the semantic prefixes.
-        or attr.startswith(_SEMANTIC_ATTR_PREFIXES)
+        or attr.startswith(config.semantic_attr_prefixes)
         for attr in node.attrs
     )
 
 
-def is_ignorable_node(node: PageElement | str | None) -> bool:
+def is_ignorable_node(node: PageElement | str | None, config: EngineConfiguration) -> bool:
     """Evaluates if a node is ignorable structural or whitespace noise.
 
     An ignorable node has no renderable content. This includes `None`, whitespace-only
@@ -174,13 +131,13 @@ def is_ignorable_node(node: PageElement | str | None) -> bool:
     # Handle BeautifulSoup Tags. `elif node:` is not specific enough for type
     # checkers when the input can be a generic PageElement.
     elif isinstance(node, Tag):
-        if node.name == "br":
+        if node.name == "br": # pyright: ignore[reportUnnecessaryComparison]
             return True
 
-        if (
-            node.name in _MEDIA_TAGS
-            or _has_semantic_attributes(node)
-            or node.find(lambda tag: tag.name in _MEDIA_TAGS)
+        if ( # pyright: ignore[reportUnnecessaryComparison]
+            node.name in config.media_tags
+            or _has_semantic_attributes(node, config)
+            or node.find(lambda tag: tag.name in config.media_tags)
         ):
             return False
 
@@ -435,7 +392,7 @@ def clone_tag(tag: Tag) -> Tag:
     )
 
 
-def get_tag_identifier(tag: Tag, attr_value_limit: int = 75) -> str:
+def get_tag_identifier(tag: Tag, attr_value_limit: int) -> str:
     """Creates a simple, readable, and truncated identifier for a tag for logging.
 
     This keeps anomaly logs and other reporting compact and safe by preventing

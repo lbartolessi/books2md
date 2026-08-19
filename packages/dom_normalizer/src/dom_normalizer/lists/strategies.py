@@ -10,9 +10,8 @@ from typing import TYPE_CHECKING, Final
 from bs4 import BeautifulSoup, Tag
 from bs4.element import NavigableString, PageElement
 
-from ..core import MIN_VIABLE_LIST_ITEMS
+from ..core.config import EngineConfiguration
 from ..core.dom_utils import (
-    BLOCK_LEVEL_TAGS,
     coerce_class_list,
     find_all_snapshot,
     is_ignorable_node,
@@ -37,19 +36,6 @@ class ListPrefixInfo:
     prefix: str  # The full prefix string
     level: int = 0  # Nesting level
 
-
-UNORDERED_PREFIX_RX: Final = re.compile(r"^\s*([-\*\u2022\u25b6\u2013])\s+")
-ORDERED_PREFIX_RX: Final = re.compile(
-    r"^\s*(?:(\(?\d+[\.\)])|(\(?[a-zA-Z][\.\)])|(\(?[ivxIVX]+[\.\)]))\s*",
-)
-LIST_CLASS_KEYWORDS: Final = frozenset(
-    {"list", "item", "bullet", "calibre", "idgenparagraphstyle"},
-)
-_COMPLEX_STRUCTURE_TAGS: Final = frozenset(
-    {"ul", "ol", "table", "figure"},
-)
-
-
 class BaseListStrategy(ABC):
     """Abstract base class for all list normalization strategies."""
 
@@ -57,6 +43,7 @@ class BaseListStrategy(ABC):
         """Initializes the strategy."""
         self.processor: ListNormalizer | None = None
         self.context: BookStyleContext | None = None
+        self.config: EngineConfiguration | None = None
 
     @abstractmethod
     def process(self, soup: BeautifulSoup) -> bool:
@@ -71,9 +58,23 @@ class BaseListStrategy(ABC):
 class ReconstructionStrategy(BaseListStrategy):
     """Reconstructs semantic lists from sequences of plain paragraphs."""
 
+    def __init__(self) -> None:
+        """Initializes the strategy and compiles regexes from config."""
+        super().__init__()
+        self._unordered_prefix_rx: re.Pattern[str] | None = None
+        self._ordered_prefix_rx: re.Pattern[str] | None = None
+
+    def _initialize_regexes(self) -> None:
+        """Lazily initializes regex patterns from the configuration."""
+        if self._unordered_prefix_rx is None or self._ordered_prefix_rx is None:
+            assert self.config is not None, PROCESSOR_UNBOUND_MSG
+            self._unordered_prefix_rx = re.compile(self.config.list_unordered_prefix_rx)
+            self._ordered_prefix_rx = re.compile(self.config.list_ordered_prefix_rx)
+
     def process(self, soup: BeautifulSoup) -> bool:
         """Scans for and processes potential list blocks from paragraphs."""
         assert self.context, PROCESSOR_UNBOUND_MSG
+        self._initialize_regexes()
         processed_nodes: set[Tag] = set()
         made_changes = False
 
@@ -93,6 +94,7 @@ class ReconstructionStrategy(BaseListStrategy):
 
     def _is_list_item_by_class(self, tag: Tag) -> bool:
         """Detects a list item based on vendor-specific class names."""
+        assert self.config is not None, PROCESSOR_UNBOUND_MSG
         if not (class_attr := tag.get("class")):
             return False
 
@@ -100,7 +102,7 @@ class ReconstructionStrategy(BaseListStrategy):
             # Per spec, normalize by lowercasing and removing separators to
             # check if any keyword is contained as a substring.
             normalized_cls = cls.lower().replace("_", "").replace("-", "")
-            if any(keyword in normalized_cls for keyword in LIST_CLASS_KEYWORDS):
+            if any(keyword in normalized_cls for keyword in self.config.list_class_keywords):
                 return True
         return False
 
@@ -113,7 +115,8 @@ class ReconstructionStrategy(BaseListStrategy):
             return True
 
         text = tag.get_text(strip=True)
-        return bool(UNORDERED_PREFIX_RX.match(text) or ORDERED_PREFIX_RX.match(text))
+        assert self._unordered_prefix_rx is not None and self._ordered_prefix_rx is not None
+        return bool(self._unordered_prefix_rx.match(text) or self._ordered_prefix_rx.match(text))
 
     def _gather_candidates(self, start_tag: Tag) -> list[Tag]:
         """Gathers a sequence of potential list-related paragraphs."""
@@ -122,7 +125,8 @@ class ReconstructionStrategy(BaseListStrategy):
         last_tag_was_list_item = self._is_list_item(start_tag)
 
         while current_node := current_node.next_sibling:
-            if is_ignorable_node(current_node):
+            assert self.context is not None, "Context not bound to strategy"
+            if is_ignorable_node(current_node, self.context.config):
                 continue
 
             if not (
@@ -142,33 +146,35 @@ class ReconstructionStrategy(BaseListStrategy):
 
     def _validate_list_viability(self, candidates: list[Tag]) -> bool:
         """Applies the "Rollback Guard" to prevent creating single-item lists."""
+        assert self.context and self.context.config, PROCESSOR_UNBOUND_MSG
         list_item_count = sum(bool(self._is_list_item(tag)) for tag in candidates)
-        return list_item_count >= MIN_VIABLE_LIST_ITEMS
+        return list_item_count >= self.context.config.min_viable_list_items
 
     def _get_prefix_info(self, tag: Tag) -> ListPrefixInfo | None:
         """Analyzes a tag to extract list prefix information from text or class."""
+        assert self.config is not None and self._unordered_prefix_rx is not None and self._ordered_prefix_rx is not None
         text = tag.get_text(strip=True)
 
         # Priority 1: Check for textual prefixes (e.g., "1.", "*").
-        if unordered_match := UNORDERED_PREFIX_RX.match(text):
+        if unordered_match := self._unordered_prefix_rx.match(text):
             return ListPrefixInfo(
                 type="ul",
                 prefix_type="bullet",
                 prefix=unordered_match.group(0),
-                level=1,  # Assume bullets are level 1
+                level=self.config.list_level_mapping.get("bullet", 1),
             )
-        if ordered_match := ORDERED_PREFIX_RX.match(text):
+        if ordered_match := self._ordered_prefix_rx.match(text):
             prefix_type = "unknown"
             level = 0
             if ordered_match.group(1):
                 prefix_type = "numeric"
-                level = 1
+                level = self.config.list_level_mapping.get("numeric", 1)
             elif ordered_match.group(2):
                 prefix_type = "alpha"
-                level = 2
+                level = self.config.list_level_mapping.get("alpha", 2)
             elif ordered_match.group(3):
                 prefix_type = "roman"
-                level = 3
+                level = self.config.list_level_mapping.get("roman", 3)
             return ListPrefixInfo(
                 type="ol",
                 prefix_type=prefix_type,
@@ -182,7 +188,7 @@ class ReconstructionStrategy(BaseListStrategy):
                 type="ul",  # Default to unordered for class-based lists
                 prefix_type="class_based",
                 prefix="",  # No textual prefix to strip
-                level=1,
+                level=self.config.list_level_mapping.get("class_based", 1),
             )
         return None
 
@@ -336,15 +342,16 @@ class SanitizationStrategy(BaseListStrategy):
 
     def _is_complex_or_block_orphan(self, child: PageElement) -> bool:
         """Checks if an orphan is a block-level tag or contains complex structures."""
+        assert self.context is not None and self.config is not None, "Context not bound to strategy"
         if not isinstance(child, Tag):
             return False
 
         # Check if the tag itself is a known block-level tag
-        if child.name in BLOCK_LEVEL_TAGS:
+        if child.name in self.config.block_level_tags:
             return True
 
         # Check if the tag contains nested complex structures
-        return bool(child.find(_COMPLEX_STRUCTURE_TAGS))
+        return bool(child.find(self.config.list_complex_structure_tags))
 
     def _has_orphan_children(self, list_tag: Tag) -> bool:
         """Checks if a list tag contains any direct children other than `<li>`."""
@@ -374,6 +381,7 @@ class SanitizationStrategy(BaseListStrategy):
 
     def _ensure_list_block_wrapper(self, soup: BeautifulSoup, list_tag: Tag) -> bool:
         """Ensures a list tag is wrapped in a `<div class="list-block">`."""
+        assert self.config is not None, PROCESSOR_UNBOUND_MSG
         parent = list_tag.parent
         # Do not wrap nested lists, which are correctly parented by an <li>
         if parent and parent.name == "li":
@@ -381,12 +389,12 @@ class SanitizationStrategy(BaseListStrategy):
 
         if (
             parent
-            and parent.name == "div"
-            and "list-block" in coerce_class_list(parent.get("class"))
+            and parent.name == self.config.list_block_wrapper_tag
+            and self.config.list_block_wrapper_class in coerce_class_list(parent.get("class"))
         ):
             return False
 
-        wrapper = soup.new_tag("div", attrs={"class": "list-block"})
+        wrapper = soup.new_tag(self.config.list_block_wrapper_tag, attrs={"class": self.config.list_block_wrapper_class})
         list_tag.wrap(wrapper)
         return True
 
@@ -419,10 +427,11 @@ class FusionStrategy(BaseListStrategy):
         list_type: str,
     ) -> Tag | None:
         """If a node is a simple div wrapping a list, returns the inner list."""
+        assert self.context is not None, "Context not bound to strategy"
         if not (isinstance(wrapper_node, Tag) and wrapper_node.name == "div"):
             return None
-        meaningful_children = [
-            child for child in wrapper_node.contents if not is_ignorable_node(child)
+        meaningful_children = [ # pyright: ignore[reportUnknownArgumentType]
+            child for child in wrapper_node.contents if not is_ignorable_node(child, self.context.config)
         ]
         if len(meaningful_children) == 1 and isinstance(meaningful_children[0], Tag):
             inner_node = meaningful_children[0]
@@ -436,7 +445,8 @@ class FusionStrategy(BaseListStrategy):
         next_node: PageElement | None = list_a.next_sibling
 
         while next_node:
-            if is_ignorable_node(next_node):
+            assert self.context is not None, "Context not bound to strategy"
+            if is_ignorable_node(next_node, self.context.config):
                 noise_to_remove.append(next_node)
                 next_node = next_node.next_sibling
                 continue

@@ -31,6 +31,7 @@ from bs4 import BeautifulSoup, Tag
 
 from .core import BookStyleContext, PipelineStatus
 from .core.component_registry import register_processor_factory
+from .core.config import EngineConfiguration
 from .core.dom_utils import generate_processor_metadata, snapshot_iterator
 
 log = logging.getLogger(__name__)
@@ -40,9 +41,7 @@ log = logging.getLogger(__name__)
 class LanguageTagger:
     """A semantic micro-normalizer for tagging language shifts in text."""
 
-    _XML_LANG_ATTR: Final[str] = "xml:lang"
-    MIN_LANG_SUBTAG_LENGTH: Final[int] = 2
-    MAX_LANG_SUBTAG_LENGTH: Final[int] = 8
+    _XML_LANG_ATTR: Final[str] = "xml:lang" # pyright: ignore[reportConstantRedefinition]
 
     def __init__(self, context: BookStyleContext) -> None:
         """Initializes the language tagger and the `lingua` detector.
@@ -64,6 +63,7 @@ class LanguageTagger:
         """
         self.context = context
         self.nodes_tagged: int = 0
+        self.config: EngineConfiguration = context.config
         self.language_shifts_detected: int = 0
 
     def process(self, soup: BeautifulSoup) -> tuple[BeautifulSoup, Mapping[str, Any]]:
@@ -157,8 +157,8 @@ class LanguageTagger:
             return None
         # BCP 47 allows for 2-3 letter ISO 639 codes, 4-letter reserved codes,
         # and 5-8 letter registered language subtags.
-        if (
-            self.MIN_LANG_SUBTAG_LENGTH <= len(base_lang) <= self.MAX_LANG_SUBTAG_LENGTH
+        if ( # pyright: ignore[reportUnknownArgumentType]
+            self.config.min_lang_subtag_length <= len(base_lang) <= self.config.max_lang_subtag_length
         ) or (len(base_lang) == 1 and base_lang.lower() in ("i", "x")):
             return base_lang.lower()
         return None

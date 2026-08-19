@@ -85,6 +85,8 @@ class BlockquoteProcessor:
         self._strategies: Sequence[BaseBlockquoteStrategy] = strategies
         for strategy in self._strategies:
             strategy.processor = self
+            strategy.context = context
+            strategy.config = context.config
 
     def _is_paragraph_like(self, node: Tag) -> bool:
         """Checks if a node is a paragraph or a div that acts like one.
@@ -104,7 +106,7 @@ class BlockquoteProcessor:
         if node.name == "div":
             # A div is not paragraph-like if it contains other block elements.
             if node.find(
-                ("p", "div", "ul", "ol", "table", "blockquote"),
+                self.context.config.blockquote_paragraph_like_blocking_tags,
                 recursive=False,
             ):
                 return False

@@ -58,8 +58,10 @@ from bs4 import BeautifulSoup, Tag
 
 from .core import BookStyleContext, PipelineStatus
 from .core.component_registry import register_processor_factory
+from .core.config import EngineConfiguration
 from .core.dom_utils import (
     coerce_class_list,
+    get_tag_identifier,
     get_utc_timestamp,
     is_ignorable_node,
     select_snapshot,
@@ -71,15 +73,6 @@ log = logging.getLogger(__name__)
 @register_processor_factory("floating_element_processor")
 class FloatingElementProcessor:
     """Isolates non-linear layout components like sidebars into <aside> tags."""
-
-    # Nodes with fewer characters than this are exempt from density checks.
-    DENSITY_EXEMPTION_CHAR_THRESHOLD: int = 49
-    # Standard character density ratio cap for a node to be considered non-primary content.
-    STANDARD_DENSITY_CAP: float = 0.20
-    # Enhanced density cap for nodes with explicit layout metadata (e.g., 'sidebar' class).
-    LAYOUT_ENHANCED_DENSITY_CAP: float = 0.65
-    # Documents with fewer characters than this are not processed.
-    MIN_DOCUMENT_CHARS_FOR_PROCESSING: int = 1
 
     def __init__(self, context: BookStyleContext) -> None:
         """Initializes the semantic isolation engine.
@@ -103,6 +96,7 @@ class FloatingElementProcessor:
 
         """
         self.context = context
+        self.config: EngineConfiguration = context.config
         self.asides_created: int = 0
         self.elements_evaluated: int = 0
         self.containment_guard_rejections: int = 0
@@ -150,10 +144,10 @@ class FloatingElementProcessor:
         self._total_document_chars = len(body.get_text())
 
         # Short-circuit for very small or empty documents to avoid misleading ratios.
-        if self._total_document_chars < self.MIN_DOCUMENT_CHARS_FOR_PROCESSING:
+        if self._total_document_chars < self.config.min_document_chars_for_processing:
             log.debug(
                 "Skipping floating element processing: document too short (%d chars).",
-                self._total_document_chars,
+                self.config.min_document_chars_for_processing,
             )
             return soup, self.get_metadata(PipelineStatus.SKIPPED)
 
@@ -263,18 +257,7 @@ class FloatingElementProcessor:
         Returns:
             str: A string summary of the tag, including its name, id, and class.
         """
-        attrs = []
-        if node_id := node.get("id"):
-            # Ensure id is a string, not a list
-            if isinstance(node_id, list):
-                node_id = " ".join(node_id)
-            attrs.append(f'id="{node_id}"')
-        if class_attr := node.get("class"):
-            class_list = coerce_class_list(class_attr)
-            attrs.append(f'class="{" ".join(class_list)}"')
-
-        attr_str = " ".join(attrs)
-        return f"<{node.name} {attr_str}>"
+        return get_tag_identifier(node, self.config.tag_identifier_attr_value_limit)
 
     @property
     def layout_indicator_classes(self) -> set[str]:
@@ -414,14 +397,14 @@ class FloatingElementProcessor:
             node.get("data-meta-layout") == "true"
             or node.get("data-orig-bgcolor")
             or has_layout_class
-        ):
-            return self.LAYOUT_ENHANCED_DENSITY_CAP
-        return self.STANDARD_DENSITY_CAP
+        ): # pyright: ignore[reportUnknownArgumentType]
+            return self.config.layout_enhanced_density_cap
+        return self.config.standard_density_cap
 
     def _passes_density_guard(self, node: Tag) -> bool:
         """Implements the density cap logic (Steps 4 & 5).
 
-        This method evaluates a node's character density to distinguish between
+        This method evaluates a node's character density to distinguish between # pyright: ignore[reportUnusedMethod]
         small, auxiliary sidebars and large, primary content blocks. It uses an
         absolute length exemption for very short nodes and a dynamic relative
         threshold for all others.
@@ -463,7 +446,7 @@ class FloatingElementProcessor:
         node_chars = len(node_text)
 
         # Step 4: Absolute Length Exemption
-        if node_chars <= self.DENSITY_EXEMPTION_CHAR_THRESHOLD:
+        if node_chars <= self.config.density_exemption_char_threshold:
             return True
 
         # Step 4: Dynamic Cap Allocation
@@ -530,7 +513,7 @@ class FloatingElementProcessor:
         # mutating the node's contents, as this check depends on the node's
         # context within its parent.
         should_replace_parent_p = parent.name == "p" and all(
-            is_ignorable_node(c) for c in parent.contents if c is not node
+            is_ignorable_node(c, self.config) for c in parent.contents if c is not node
         )
 
         # Move all children from the original node to the new aside tag.

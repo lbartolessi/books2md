@@ -14,3 +14,58 @@ members = [
 
 [dependency-groups]
 dev = []
+
+[tool.ruff]
+# Versión mínima de Python objetivo para compatibilidad de sintaxis
+target-version = "py310"
+
+# Longitud máxima de línea (igual que la convención de Black/Ruff)
+line-length = 88
+
+# Archivos y directorios a ignorar
+exclude = [
+    ".git",
+    ".venv",
+    "build",
+    "dist",
+    "__pycache__",
+]
+
+# Configuración específica del LINTER
+[tool.ruff.lint]
+# Reglas seleccionadas:
+# E / W  : pycodestyle (errores y avisos)
+# F      : Pyflakes (importaciones no usadas, variables indefinidas)
+# I      : isort (ordenación automática de imports)
+# B      : flake8-bugbear (patrones propensos a bugs)
+# UP     : pyupgrade (modernización de sintaxis antigua)
+# SIM    : flake8-simplify (simplificación de estructuras if/else)
+select = ["E", "W", "F", "I", "B", "UP", "SIM"]
+
+# Reglas explícitamente ignoradas (personalizable según preferencia)
+ignore = [
+    "E501", # Ignora la longitud de línea estricta en comentarios/strings si el formateador no puede partirla
+]
+
+# Permitir autofix para todas las reglas habilitadas que lo soporten
+fixable = ["ALL"]
+unfixable = []
+
+# Configuración específica de ISORT (ordenación de imports)
+[tool.ruff.lint.isort]
+combine-as-imports = true
+known-first-party = []
+
+# Configuración específica del FORMATEADOR
+[tool.ruff.format]
+# Usar comillas dobles (estándar estilo Black)
+quote-style = "double"
+
+# Indentación estándar
+indent-style = "space"
+
+# Respetar saltos de línea automáticos al final de colecciones con coma final
+skip-magic-trailing-comma = false
+
+# Formatear código en docstrings de tipo Markdown o doctests si los hay
+docstring-code-format = true

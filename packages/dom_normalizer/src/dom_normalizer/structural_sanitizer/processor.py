@@ -72,32 +72,6 @@ def create_structural_sanitizer(
     )
 
 
-#: Tags that are iterated over as block-level nodes in the main sanitize loop.
-_BLOCK_LEVEL_TAGS = frozenset(
-    [
-        "p",
-        "div",
-        "h1",
-        "h2",
-        "h3",
-        "h4",
-        "h5",
-        "h6",
-        "blockquote",
-        "pre",
-        "li",
-        "td",
-        "th",
-        "section",
-        "article",
-        "aside",
-        "main",
-        "header",
-        "footer",
-    ],
-)
-
-
 class StructuralSanitizer:
     """Orchestrates a multi-pass sanitization of a DOM tree.
 
@@ -220,7 +194,9 @@ class StructuralSanitizer:
             - Full depth traversal: Yes.
         """
         # Use snapshot_iterator for safe iteration while modifying the DOM.
-        block_nodes = find_all_snapshot(soup, _BLOCK_LEVEL_TAGS)
+        block_nodes = find_all_snapshot(
+            soup, list(self.context.config.sanitizer_block_level_tags)
+        )
 
         for node in block_nodes:
             if node.parent is None or not isinstance(node, Tag):
@@ -233,15 +209,15 @@ class StructuralSanitizer:
                 if isinstance(e, (KeyboardInterrupt, SystemExit)):
                     raise
                 error_details = {
-                    "node": get_tag_identifier(node),
+                    "node": get_tag_identifier(
+                        node, self.context.config.tag_identifier_attr_value_limit
+                    ),
                     "error": str(e),
                 }
                 self.errors.append(error_details)
                 log.exception(
-                    "Error processing node %s in StructuralSanitizer: %s",
+                    "Error processing node %s in StructuralSanitizer.",
                     getattr(node, "name", "unknown"),
-                    e,
-                    exc_info=True,
                 )
                 continue
 
@@ -251,11 +227,7 @@ class StructuralSanitizer:
             if isinstance(e, (KeyboardInterrupt, SystemExit)):
                 raise
             self.errors.append({"node": "document_epilogue", "error": str(e)})
-            log.exception(
-                "Error in StructuralSanitizer epilogue: %s",
-                e,
-                exc_info=True,
-            )
+            log.exception("Error in StructuralSanitizer epilogue.")
 
         has_changes = any(
             [

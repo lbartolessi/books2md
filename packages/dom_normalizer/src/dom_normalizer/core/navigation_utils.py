@@ -9,21 +9,22 @@ from collections.abc import Sequence
 
 from bs4 import Tag
 
+from .config import EngineConfiguration
+
 # Regex for file-based fallback (Pillar 1)
 FILE_FALLBACK_RX: re.Pattern[str] = re.compile(
     r"/(nav|toc|indice|contents|summary)\.xhtml$",
     re.IGNORECASE,
 )
 
-# Regex for inline TOC line pattern (Pillar 2)
-TOC_LINE_RX: re.Pattern[str] = re.compile(
-    # A more efficient regex to avoid catastrophic backtracking.
-    # It matches two or more dots/hyphens, or one or more spaces.
-    # The end part `(?:\D.*)?` ensures that after matching digits, the next
-    # character must be a non-digit, preventing backtracking issues with `\d+.*`.
-    r"^.{3,70}?(?:[.-]{2,}|\s+)\d+(?:\D.*)?$",
-    re.DOTALL,
-)
+
+def get_toc_line_rx(config: EngineConfiguration) -> re.Pattern[str]:
+    """Generates a compiled regex for inline TOC lines based on configuration."""
+    return re.compile(
+        rf"^.{{{config.min_toc_line_chars},{config.max_toc_line_chars}}}?(?:[.-]{{2,}}|\s+)\d+(?:\D.*)?$",
+        re.DOTALL,
+    )
+
 
 # --- Pillar 2 Helpers ---
 
@@ -62,7 +63,11 @@ def extract_trailing_numbers_from_block(block: Sequence[Tag]) -> list[int] | Non
     return numbers
 
 
-def is_arithmetic_progression(numbers: list[int], min_lines: int) -> bool:
+def is_arithmetic_progression(
+    numbers: list[int],
+    min_lines: int,
+    config: EngineConfiguration,
+) -> bool:
     """Implements the "Agnostic Anti-Step Guard" for Pillar 2.
 
     This checks if a sequence of numbers is a simple arithmetic progression
@@ -87,7 +92,7 @@ def is_arithmetic_progression(numbers: list[int], min_lines: int) -> bool:
         - A sequence is preserved if it is an arithmetic progression increasing
           by exactly +1, starting from either 0 or 1 (e.g., `[1, 2, 3, 4]`).
     """
-    if len(numbers) < min_lines or numbers[0] not in (0, 1):
+    if len(numbers) < min_lines or numbers[0] not in config.checklist_start_numbers:
         return False
     return all(numbers[i] - numbers[i - 1] == 1 for i in range(1, len(numbers)))
 

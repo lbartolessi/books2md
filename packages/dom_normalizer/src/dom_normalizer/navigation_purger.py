@@ -73,6 +73,7 @@ from .core import (
     PipelineStatus,
 )
 from .core.component_registry import register_processor_factory
+from .core.config import EngineConfiguration
 from .core.dom_utils import (
     coerce_class_list,
     find_all_snapshot,
@@ -81,9 +82,9 @@ from .core.dom_utils import (
 )
 from .core.navigation_utils import (
     FILE_FALLBACK_RX,
-    TOC_LINE_RX,
     extract_trailing_numbers_from_block,
     get_final_column_numeric_values,
+    get_toc_line_rx,
     initial_column_has_short_text,
     is_arithmetic_progression,
     is_strictly_non_decreasing,
@@ -97,32 +98,7 @@ class NavigationPurger:
     """A multi-pillar engine for detecting and purging redundant navigation structures."""
 
     _FILE_FALLBACK_RX = FILE_FALLBACK_RX
-    _TOC_LINE_RX = TOC_LINE_RX
 
-    # --- Pillar 2 Constants ---
-    # Minimum number of consecutive lines to be considered a potential TOC block.
-    MIN_INLINE_TOC_LINES: int = 4
-    # Maximum number of words in a line to be considered part of a TOC block run.
-    # This acts as an "air-lock" to stop the run.
-    MAX_WORDS_IN_TOC_AIRLOCK: int = 30
-
-    # --- Pillar 3 Constants ---
-    # Minimum number of rows for a table to be considered a potential index.
-    MIN_TABULAR_INDEX_ROWS: int = 2
-    # Maximum character length for the text in the first cell of a table row.
-    MAX_CHARS_IN_INITIAL_COLUMN: int = 25
-
-    # --- Tier 2 Fallback Constants ---
-    # Text-to-Link Character Ratio threshold. If the ratio of non-link text to
-    # total text is below this, the file is considered a "Pure Index".
-    TLCR_THRESHOLD: float = 0.85
-
-    # --- Protected Prose Classes ---
-    # If a container has any of these classes, it's considered protected prose,
-    # and a full-body purge (Tier 2) is aborted.
-    PROTECTED_PROSE_CLASSES: frozenset[str] = frozenset(
-        {"prose", "editorial", "editorial-prose"},
-    )
 
     def __init__(
         self,
@@ -153,6 +129,8 @@ class NavigationPurger:
               per Global Directive #3.
         """
         self.context = context # type: ignore
+        self.config: EngineConfiguration = context.config
+        self._toc_line_rx = get_toc_line_rx(self.config)
         self.native_toc_isolated: bool = False
         self.nav_elements_purged: int = 0
         self.inline_toc_blocks_purged: int = 0
@@ -302,7 +280,7 @@ class NavigationPurger:
         # Anti-Decomposition Guard
         for tag in soup.body.find_all(True):
             classes = coerce_class_list(tag.get("class"))
-            if self.PROTECTED_PROSE_CLASSES.intersection(classes):
+            if self.config.protected_prose_classes.intersection(classes):
                 return False  # Mixed Content Mode, abort body purge
 
         # TLCR Calculation
@@ -313,7 +291,7 @@ class NavigationPurger:
         anchor_chars = sum(len(a.get_text()) for a in soup.body.find_all("a"))
         log.debug(
             "TLCR calculation: total_chars=%d, anchor_chars=%d",
-            total_chars,
+            total_chars, # pyright: ignore[reportUnknownArgumentType]
             anchor_chars,
         )
 
@@ -322,15 +300,15 @@ class NavigationPurger:
         if total_chars > 0 and total_chars == anchor_chars:
             return False
 
-        tlcr = (total_chars - anchor_chars) / total_chars
+        tlcr = (total_chars - anchor_chars) / total_chars # pyright: ignore[reportUnknownVariableType]
         log.debug(
             "TLCR for file %s: %.2f (Threshold: %.2f)",
             file_path.name,
             tlcr,
-            self.TLCR_THRESHOLD,
+            self.config.tlcr_threshold,
         )
 
-        if tlcr < self.TLCR_THRESHOLD:  # Pure Index Mode
+        if tlcr < self.context.config.tlcr_threshold:  # Pure Index Mode
             log.debug(
                 "Entering Pure Index Mode: Purging entire body for file %s.",
                 file_path.name,
@@ -421,7 +399,7 @@ class NavigationPurger:
         if not isinstance(node, Tag) or self.context.is_inside_code_block(node):
             return False
         text = node.get_text(strip=True)
-        return bool(self._TOC_LINE_RX.match(text))
+        return bool(self._toc_line_rx.match(text))
 
     def _should_stop_gathering_block(self, sibling: Tag) -> bool:
         """Checks if the block gathering process should stop based on air-lock conditions.
@@ -432,9 +410,9 @@ class NavigationPurger:
         Returns:
             bool: True if the gathering should stop, False otherwise.
         """
-        return (
+        return ( # pyright: ignore[reportUnknownArgumentType]
             sibling.name == "h2"
-            or len(sibling.get_text().split()) > self.MAX_WORDS_IN_TOC_AIRLOCK
+            or len(sibling.get_text().split()) > self.config.max_words_in_toc_airlock
         )
 
     def _get_toc_line_from_wrapper(self, wrapper_tag: Tag) -> Tag | None:
@@ -482,14 +460,14 @@ class NavigationPurger:
             return current_block  # Should not happen if parent is correct
 
         for sibling in parent.contents[start_index + 1 :]:
-            if is_ignorable_node(sibling):
+            if is_ignorable_node(sibling, self.config):
                 continue
 
             if not isinstance(sibling, Tag):
                 break  # Non-tag elements break contiguity
 
             # Air-Lock conditions to stop the run.
-            if self._should_stop_gathering_block(sibling):
+            if self._should_stop_gathering_block(sibling): # pyright: ignore[reportUnknownArgumentType]
                 break
 
             if self._is_potential_toc_line(sibling):
@@ -556,7 +534,7 @@ class NavigationPurger:
                 continue
 
             if self._is_potential_toc_line(start_node) and (  # NOSONAR
-                current_block := self._gather_potential_toc_block(start_node)
+                current_block := self._gather_potential_toc_block(start_node) # pyright: ignore[reportUnknownArgumentType]
             ):
                 self._evaluate_and_purge_toc_block(soup, current_block)
                 processed_nodes.update(current_block)
@@ -583,15 +561,16 @@ class NavigationPurger:
             - Threshold Gate: The block is preserved if it contains fewer than 4 lines.
             - Anti-Step Guard: For blocks with >= 4 lines, the trailing numbers are
               extracted and checked with `_is_arithmetic_progression`. If it returns
-              `True`, the block is preserved. Otherwise, it is purged.
+              `True`, the block is preserved. Otherwise, it is purged. # pyright: ignore[reportUnusedMethod]
         """
-        if len(block) < self.MIN_INLINE_TOC_LINES:
-            return
+        if len(block) < self.config.min_inline_toc_lines:
+            return # pyright: ignore[reportUnusedMethod]
 
         numbers = extract_trailing_numbers_from_block(block)
         if numbers is not None and is_arithmetic_progression(
             numbers,
-            self.MIN_INLINE_TOC_LINES,
+            self.config.min_inline_toc_lines,
+            self.config,
         ):
             return  # Preserve checklists
         self._purge_nodes(soup, block)
@@ -620,12 +599,12 @@ class NavigationPurger:
         self.elements_evaluated_count += 1
         rows = table.find_all("tr")
 
-        # 1. Row Count Gate
-        if len(rows) < self.MIN_TABULAR_INDEX_ROWS:
+        # 1. Row Count Gate # pyright: ignore[reportUnknownArgumentType]
+        if len(rows) < self.context.config.min_tabular_index_rows:
             return False
 
-        # 2. Initial Column Constraint
-        if not initial_column_has_short_text(rows, self.MAX_CHARS_IN_INITIAL_COLUMN):
+        # 2. Initial Column Constraint # pyright: ignore[reportUnknownArgumentType]
+        if not initial_column_has_short_text(rows, self.context.config.max_chars_in_initial_column):
             return False
 
         # 3. Final Column Numeric & Monotonicity
@@ -700,18 +679,16 @@ class NavigationPurger:
         )
 
     # --- New methods for link density heuristic ---
-    HIGH_LINK_DENSITY_THRESHOLD: float = 0.7
-
     def _calculate_link_density(self, tag: Tag) -> float:
         """Calculates the link density of a given tag."""
         total_text_len = len(tag.get_text(strip=True))
         if total_text_len == 0:
             return 0.0
-        
+
         links = tag.find_all("a")
         link_text_len = sum(len(a.get_text(strip=True)) for a in links)
         return link_text_len / total_text_len
-
+ 
     def _is_navigation_like_element(self, tag: Tag) -> bool:
         """Checks if a tag has navigation-like attributes or classes."""
         if tag.name == "nav" or tag.has_attr("role") and "navigation" in coerce_class_list(tag["role"]):
@@ -728,13 +705,13 @@ class NavigationPurger:
 
             link_density = self._calculate_link_density(tag)
 
-            if tag.name == "ul" and link_density > self.HIGH_LINK_DENSITY_THRESHOLD:
+            if tag.name == "ul" and link_density > self.context.config.high_link_density_threshold:
                 self._purge_and_log_element(
                     soup, tag, "Purged <ul> with high link density: %s"
                 )
             elif (
                 tag.name == "div"
-                and link_density > self.HIGH_LINK_DENSITY_THRESHOLD
+                and link_density > self.context.config.high_link_density_threshold
                 and self._is_navigation_like_element(tag)
             ):
                 self._purge_and_log_element(

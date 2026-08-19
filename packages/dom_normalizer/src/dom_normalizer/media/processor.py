@@ -53,10 +53,7 @@ from ..core.dom_utils import (
     snapshot_iterator,
 )
 from ..core.media_utils import (
-    AUDIO_EXTENSIONS,
-    IMAGE_EXTENSIONS,
-    MIME_TO_EXTENSION_MAP,
-    VIDEO_EXTENSIONS,
+    get_extension_for_mime,
     normalize_extension,
 )
 from .handlers import BaseMediaHandler, get_media_handlers
@@ -193,7 +190,7 @@ class MediaProcessor:
             str: The corresponding file extension with a leading dot (e.g., '.png'),
                 or an empty string if the type is unknown.
         """
-        return MIME_TO_EXTENSION_MAP.get(mime_type.lower(), "")
+        return get_extension_for_mime(mime_type, self.context.config) or ""
 
     def validate_and_resolve_local_asset_path(
         self,
@@ -222,9 +219,13 @@ class MediaProcessor:
             )
             return None
 
-        ext = normalize_extension(src_path.suffix)
-        all_media_ext = AUDIO_EXTENSIONS | VIDEO_EXTENSIONS | IMAGE_EXTENSIONS
-        if ext not in all_media_ext:
+        ext = normalize_extension(src_path.suffix, self.context.config)
+        all_media_ext = (
+            self.context.config.audio_extensions
+            | self.context.config.video_extensions
+            | self.context.config.image_extensions
+        )
+        if not ext or ext not in all_media_ext:
             return None
 
         abs_src_path = (file_path.parent / src_path).resolve()
@@ -262,7 +263,7 @@ class MediaProcessor:
             return None
 
         try:
-            ext = normalize_extension(abs_src_path.suffix)
+            ext = normalize_extension(abs_src_path.suffix, self.context.config)
             if ext is None:
                 self.handle_local_media_error(
                     "Could not determine a valid extension for %s",
@@ -287,10 +288,10 @@ class MediaProcessor:
         Returns:
             str: The media type ('audio', 'video', or 'images').
         """
-        if extension in AUDIO_EXTENSIONS:
+        if extension in self.context.config.audio_extensions:
             self.local_audio_count += 1
             return "audio"
-        if extension in VIDEO_EXTENSIONS:
+        if extension in self.context.config.video_extensions:
             self.local_video_count += 1
             return "video"
         self.local_image_count += 1

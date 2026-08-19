@@ -93,6 +93,7 @@ class ListNormalizer:
         for strategy in self.strategies:
             strategy.processor = self
             strategy.context = self.context
+            strategy.config = self.context.config
 
     def process(self, soup: BeautifulSoup) -> tuple[BeautifulSoup, Mapping[str, Any]]:
         """Orchestrates the three-suite list normalization process.

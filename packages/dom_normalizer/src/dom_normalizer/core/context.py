@@ -30,9 +30,6 @@ from .lang_codes import ISOLanguageCode
 
 log = logging.getLogger(__name__)
 
-_MIN_INDENT_EM_REM: Final[float] = 1.5
-_MIN_INDENT_PX: Final[int] = 24
-
 
 class BookStyleContext:
     """A thread-isolated container for a single book's structural style profile.
@@ -87,10 +84,6 @@ class BookStyleContext:
         re.IGNORECASE,
     )
 
-    # Per review, add safeguards against deeply nested or malformed CSS.
-    _MAX_BRACE_DEPTH: Final[int] = 50
-    _MAX_SCAN_ITERATIONS: Final[int] = 1_000_000
-
     def __init__(
         self,
         primary_language: ISOLanguageCode,
@@ -125,8 +118,7 @@ class BookStyleContext:
         if epub_css_content:
             self._harvest_layout_classes(epub_css_content)
 
-    @staticmethod
-    def _find_matching_brace_end(text: str, start_index: int) -> int:
+    def _find_matching_brace_end(self, text: str, start_index: int) -> int:
         """Finds the index of the matching closing brace for an opening brace.
 
         This helper function starts scanning from `start_index` (which should be
@@ -145,12 +137,10 @@ class BookStyleContext:
         brace_depth = 1
         i = start_index + 1
         iterations = 0
-        while (
-            i < len(text) and iterations < BookStyleContext._MAX_SCAN_ITERATIONS
-        ):  # NOSONAR
+        while i < len(text) and iterations < self.config.css_max_scan_iterations:  # NOSONAR
             if text[i] == "{":
                 brace_depth += 1
-                if brace_depth > BookStyleContext._MAX_BRACE_DEPTH:
+                if brace_depth > self.config.css_max_brace_depth:
                     return -1  # Exceeded max depth, treat as malformed
             elif text[i] == "}":
                 brace_depth -= 1
@@ -202,8 +192,7 @@ class BookStyleContext:
 
         return token_finder.sub(replacer, css_text)
 
-    @staticmethod
-    def _strip_css_media_blocks(css_text: str) -> str:
+    def _strip_css_media_blocks(self, css_text: str) -> str:
         """Strips @media blocks from a CSS string, correctly handling nesting.
 
         This method is designed to be resilient against malformed CSS. If it
@@ -211,7 +200,7 @@ class BookStyleContext:
         the next likely rule boundary (a '}' or newline) to prevent the
         malformed block from corrupting the rest of the style analysis.
         """
-        clean_css = BookStyleContext._strip_css_comments(css_text)
+        clean_css = self._strip_css_comments(css_text)
         output = []
         i = 0
         while i < len(clean_css):
@@ -231,7 +220,7 @@ class BookStyleContext:
 
             try:
                 brace_start = clean_css.index("{", i)
-                brace_end = BookStyleContext._find_matching_brace_end(
+                brace_end = self._find_matching_brace_end(
                     clean_css,
                     brace_start,
                 )
@@ -239,7 +228,7 @@ class BookStyleContext:
                     i = brace_end  # Skip the entire @media block
                 else:
                     # Unmatched brace; recover and continue.
-                    i = BookStyleContext._recover_from_malformed_media_block(
+                    i = self._recover_from_malformed_media_block(
                         clean_css,
                         i,
                     )
@@ -248,7 +237,7 @@ class BookStyleContext:
                 # To avoid leaking partial rules, we advance the parser past
                 # the likely end of this malformed block by finding the next
                 # brace or newline.
-                i = BookStyleContext._recover_from_malformed_media_block(clean_css, i)
+                i = self._recover_from_malformed_media_block(clean_css, i)
         return "".join(output)
 
     def _harvest_layout_classes(self, css_text: str) -> None:
@@ -268,14 +257,14 @@ class BookStyleContext:
         clean_css = self._strip_css_media_blocks(css_text)
         i = 0
         iterations = 0
-        while i < len(clean_css) and iterations < self._MAX_SCAN_ITERATIONS:
+        while i < len(clean_css) and iterations < self.config.css_max_scan_iterations:
             iterations += 1
 
             # Advance past any trailing '}' or whitespace from the previous block
             # so that each raw_selectors slice cleanly corresponds to a single ruleset.
             while (
                 i < len(clean_css)
-                and iterations < self._MAX_SCAN_ITERATIONS
+                and iterations < self.config.css_max_scan_iterations
                 and clean_css[i] in ("}", " ", "\t", "\n", "\r", "\f")
             ):
                 i += 1
@@ -286,11 +275,11 @@ class BookStyleContext:
 
             i = self._process_css_rule(clean_css, i)
 
-        if iterations >= self._MAX_SCAN_ITERATIONS and i < len(clean_css):
+        if iterations >= self.config.css_max_scan_iterations and i < len(clean_css):
             log.warning(
                 "CSS layout class harvesting aborted after reaching the iteration "
                 "limit (%d). Remaining CSS length: %d",
-                self._MAX_SCAN_ITERATIONS,
+                self.config.css_max_scan_iterations,
                 len(clean_css) - i,
             )
 
@@ -372,8 +361,8 @@ class BookStyleContext:
 
     def _is_significant_indent(self, val: float, unit: str) -> bool:
         """Checks if an indent value meets the engine's significance threshold."""
-        return (unit in {"em", "rem"} and val >= _MIN_INDENT_EM_REM) or (
-            unit == "px" and val >= _MIN_INDENT_PX
+        return (unit in {"em", "rem"} and val >= self.config.min_indent_em_rem) or (
+            unit == "px" and val >= self.config.min_indent_px
         )
 
     def _is_indent_declaration(

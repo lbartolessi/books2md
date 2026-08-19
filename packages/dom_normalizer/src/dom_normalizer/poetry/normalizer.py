@@ -88,7 +88,7 @@ class PoetryNormalizer:
         Returns:
             list[Tag]: A list of candidate tags to be analyzed.
         """
-        candidates = list(soup.find_all("blockquote"))
+        candidates = list(soup.find_all(self.context.config.poetry_candidate_tags))
 
         if not self._is_high_priority_mode():
             return candidates
@@ -102,7 +102,7 @@ class PoetryNormalizer:
         # low-quality candidates. Paragraph-level heuristics should be handled
         # by more targeted logic (e.g., class-based or context-based selection)
         # in the matcher or in a dedicated paragraph filter.
-        potential_tags = ["div", "table"]
+        potential_tags = self.context.config.poetry_high_priority_candidate_tags
         all_candidates = list(candidates)
         for tag_name in potential_tags:
             all_candidates.extend(soup.find_all(tag_name))
@@ -439,7 +439,9 @@ class PoetryNormalizer:
 
             if indent > 0:
                 # For indented lines, always add a span with em-spaces.
-                poetry_block.append(soup.new_tag("span", string="\u2003" * indent))
+                poetry_block.append(
+                    soup.new_tag("span", string=self.context.config.poetry_indent_char * indent)
+                )
 
             if has_renderable_nodes:
                 poetry_block.extend(nodes_to_append)
@@ -448,7 +450,7 @@ class PoetryNormalizer:
                 # ensure it is not collapsed by HTML formatters.
                 indent_only_span = soup.new_tag("span")
                 classes = coerce_class_list(indent_only_span.get("class"))
-                classes.append("poetry-indent-only-line")
+                classes.append(self.context.config.poetry_indent_only_line_class)
                 indent_only_span["class"] = " ".join(classes)
                 # Use a non-breaking space so downstream tools can detect and
                 # preserve this line without relying on invisible characters.
@@ -513,7 +515,9 @@ class PoetryNormalizer:
         if not lines:
             return
 
-        poetry_block = soup.new_tag("div", attrs={"class": "poetry-block"})
+        poetry_block = soup.new_tag(
+            "div", attrs={"class": self.context.config.poetry_block_class}
+        )
         # The poetry_block is directly appended to the target or replaces it.
 
         self._populate_poetry_block(lines, poetry_block, soup)

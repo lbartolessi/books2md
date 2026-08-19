@@ -17,7 +17,6 @@ import re
 import sys
 import tempfile
 import traceback
-import types
 from typing import Any, Final, cast
 
 # Add the project root to the Python path to allow imports from 'src'.
@@ -40,6 +39,9 @@ except ImportError as e:
     print(f"\033[91mFailed to import core components: {e}\033[0m")
     sys.exit(1)
 
+from src.dom_normalizer.core.config import (
+    EngineConfiguration,
+)
 from src.dom_normalizer.core.context import (
     BookStyleContext as RealBookStyleContext,
 )
@@ -51,7 +53,7 @@ from src.dom_normalizer.core.dom_utils import (
 )
 from src.dom_normalizer.core.lang_codes import ISOLanguageCode
 from src.dom_normalizer.core.media_utils import (
-    MIME_TO_EXTENSION_MAP,
+    get_extension_for_mime,
     normalize_extension,
 )
 
@@ -77,123 +79,340 @@ class MockBookStyleContext:
         self.file_name = context_spec.get("file_name", "document.xhtml")
         self.book_base_name = context_spec.get("book_base_name", "test_book")
 
-        # Initialize a mock config object to simulate context.config
-        self.config = types.SimpleNamespace()
-        self.config.enable_contrastive_emphasis = context_spec.get(
-            "enable_contrastive_emphasis",
-            False,
-        )
-        # Add defaults for floating_element_processor tests
-        self.config.dense_container_tags = context_spec.get(
-            "dense_container_tags",
-            ["body", "main", "article"],
-        )
-        self.config.dense_container_heading_tags = context_spec.get(
-            "dense_container_heading_tags",
-            ["h1", "h2", "h3"],
-        )
-        # Add defaults for heading_normalizer tests
-        self.config.initial_heading_level = context_spec.get(
-            "initial_heading_level",
-            1,
-        )
-        self.config.heading_classes = context_spec.get(
-            "heading_classes",
-            {},
-        )
-        # Add defaults for footnote_processor tests
-        self.config.footnote_patterns = context_spec.get(
-            "footnote_patterns",
-            [],
-        )
-        # Add defaults for language_tagger tests
-        self.config.language_enum_map = context_spec.get(
-            "language_enum_map",
-            {
-                "en": "ENGLISH",
-                "es": "SPANISH",
-                "fr": "FRENCH",
-                "de": "GERMAN",
-                "it": "ITALIAN",
-                "pt": "PORTUGUESE",
-                "la": "LATIN",
-            },
-        )
-        self.config.supported_languages = context_spec.get(
-            "supported_languages",
-            ["en", "es", "fr", "de", "it", "pt", "la"],
-        )
-        self.config.lingua_low_memory_mode = context_spec.get(
-            "lingua_low_memory_mode",
-            True,
-        )
-        # Add defaults for media_processor tests
-        self.config.external_video_domains = context_spec.get(
-            "external_video_domains",
-            [],
-        )
-        # Add defaults for poetry_normalizer tests
-        self.config.high_poetry_priority = context_spec.get(
-            "high_poetry_priority",
-            False,
-        )
-        self.config.high_priority_potential_tags = context_spec.get(
-            "high_priority_potential_tags",
-            ["div", "table", "p"],
-        )
-        self.config.high_priority_attribute_hints = context_spec.get(
-            "high_priority_attribute_hints",
-            ["poem", "poetry", "verse", "stanza", "lyrics"],
-        )
-        self.config.br_density_threshold = context_spec.get(
-            "br_density_threshold",
-            50.0,
-        )
-        self.config.dialogue_exclusion_threshold = context_spec.get(
-            "dialogue_exclusion_threshold",
-            0.4,
-        )
-        self.config.enjambment_ratio_threshold = context_spec.get(
-            "enjambment_ratio_threshold",
-            0.6,
-        )
-        self.config.poetry_max_words_for_enjambment = context_spec.get(
-            "poetry_max_words_for_enjambment",
-            12,
-        )
-        self.config.poetry_em_to_indent_ratio = context_spec.get(
-            "em_to_indent_ratio",
-            1.0,
-        )
-        self.config.poetry_px_to_em_ratio = context_spec.get("px_to_em_ratio", 16.0)
-        self.config.poetry_percent_to_indent_ratio = context_spec.get(
-            "percent_to_indent_ratio",
-            2.0,
-        )
-        self.config.poetry_nbsp_to_indent_ratio = context_spec.get(
-            "nbsp_to_indent_ratio",
-            2.0,
-        )
-        self.config.poetry_max_nbsp_depth = context_spec.get("max_nbsp_depth", 3)
-        self.config.poetry_indentation_tag_whitelist = context_spec.get(
-            "indentation_tag_whitelist",
-            ["p", "div"],
-        )
-        # Add config for BrCollapseStrategy
-        self.config.poetic_classes_substrings = context_spec.get(
-            "poetic_classes_substrings",
-            ["verse", "poem", "poesia", "poetic", "poetry"],
-        )
-        self.config.min_br_for_poetic_metrics = context_spec.get(
-            "min_br_for_poetic_metrics",
-            2,
-        )
-        self.config.max_avg_words_per_line_poetic = context_spec.get(
-            "max_avg_words_per_line_poetic",
-            12,
-        )
-
-        # Store lists for element checks, used by mock methods below
+        # Initialize a full EngineConfiguration object from the test spec
+        config_kwargs = {
+            "enable_contrastive_emphasis": context_spec.get(
+                "enable_contrastive_emphasis", False
+            ),
+            "dense_container_tags": context_spec.get(
+                "dense_container_tags", ["body", "main", "article"]
+            ),
+            "dense_container_heading_tags": context_spec.get(
+                "dense_container_heading_tags", ["h1", "h2", "h3"]
+            ),
+            "initial_heading_level": context_spec.get("initial_heading_level", 1),
+            "heading_classes": context_spec.get("heading_classes", {}),
+            "max_sane_heading_length": context_spec.get("max_sane_heading_length", 1000),
+            "min_heading_level": context_spec.get("min_heading_level", 1),
+            "max_heading_level": context_spec.get("max_heading_level", 6),
+            "max_heading_length": context_spec.get("max_heading_length", 150),
+            "max_link_density": context_spec.get("max_link_density", 0.5),
+            "bold_paragraph_heading_level": context_spec.get(
+                "bold_paragraph_heading_level", "h2"
+            ),
+            "bold_promotion_requires_solitary_bold_tag": context_spec.get(
+                "bold_promotion_requires_solitary_bold_tag", True
+            ),
+            "bold_promotion_requires_text_only_children": context_spec.get(
+                "bold_promotion_requires_text_only_children", True
+            ),
+            "footnote_patterns": context_spec.get("footnote_patterns", []),
+            "language_enum_map": context_spec.get(
+                "language_enum_map",
+                {
+                    "en": "ENGLISH",
+                    "es": "SPANISH",
+                    "fr": "FRENCH",
+                    "de": "GERMAN",
+                    "it": "ITALIAN",
+                    "pt": "PORTUGUESE",
+                    "la": "LATIN",
+                },
+            ),
+            "lingua_low_memory_mode": context_spec.get("lingua_low_memory_mode", True),
+            "external_video_domains": context_spec.get("external_video_domains", []),
+            "min_lang_subtag_length": context_spec.get("min_lang_subtag_length", 2),
+            "max_lang_subtag_length": context_spec.get("max_lang_subtag_length", 8),
+            "high_poetry_priority": context_spec.get("high_poetry_priority", False),
+            "high_priority_potential_tags": context_spec.get(
+                "high_priority_potential_tags", ["div", "table", "p"]
+            ),
+            "high_priority_attribute_hints": context_spec.get(
+                "high_priority_attribute_hints",
+                ["poem", "poetry", "verse", "stanza", "lyrics"],
+            ),
+            "br_density_threshold": context_spec.get("br_density_threshold", 50.0),
+            "dialogue_exclusion_threshold": context_spec.get(
+                "dialogue_exclusion_threshold", 0.4
+            ),
+            "enjambment_ratio_threshold": context_spec.get(
+                "enjambment_ratio_threshold", 0.6
+            ),
+            "poetry_max_words_for_enjambment": context_spec.get(
+                "poetry_max_words_for_enjambment", 12
+            ),
+            "poetry_prose_word_count_multiplier": context_spec.get(
+                "poetry_prose_word_count_multiplier", 2.0
+            ),
+            "poetry_em_to_indent_ratio": context_spec.get("em_to_indent_ratio", 1.0),
+            "poetry_px_to_em_ratio": context_spec.get("px_to_em_ratio", 16.0),
+            "poetry_percent_to_indent_ratio": context_spec.get(
+                "percent_to_indent_ratio", 2.0
+            ),
+            "poetry_nbsp_to_indent_ratio": context_spec.get("nbsp_to_indent_ratio", 2.0),
+            "poetry_max_nbsp_depth": context_spec.get("max_nbsp_depth", 3),
+            "poetry_indentation_tag_whitelist": context_spec.get(
+                "indentation_tag_whitelist", ["p", "div"]
+            ),
+            "poetry_indentation_properties": context_spec.get(
+                "poetry_indentation_properties",
+                ("margin-left", "padding-left", "text-indent"),
+            ),
+            "poetry_indentation_units": context_spec.get(
+                "poetry_indentation_units", ("em", "rem", "px", "%")
+            ),
+            "poetic_classes_substrings": context_spec.get(
+                "poetic_classes_substrings",
+                ["verse", "poem", "poesia", "poetic", "poetry"],
+            ),
+            "min_br_for_poetic_metrics": context_spec.get(
+                "min_br_for_poetic_metrics", 2
+            ),
+            "max_avg_words_per_line_poetic": context_spec.get(
+                "max_avg_words_per_line_poetic", 12
+            ),
+            "min_viable_list_items": context_spec.get("min_viable_list_items", 2),
+            "list_unordered_prefix_rx": context_spec.get(
+                "list_unordered_prefix_rx", r"^\s*([-\*\u2022\u25b6\u2013])\s+"
+            ),
+            "list_ordered_prefix_rx": context_spec.get(
+                "list_ordered_prefix_rx",
+                r"^\s*(?:(\(?\d+[\.\)])|(\(?[a-zA-Z][\.\)])|(\(?[ivxIVX]+[\.\)]))\s*",
+            ),
+            "list_class_keywords": frozenset(
+                context_spec.get(
+                    "list_class_keywords",
+                    {"list", "item", "bullet", "calibre", "idgenparagraphstyle"},
+                )
+            ),
+            "list_complex_structure_tags": frozenset(
+                context_spec.get(
+                    "list_complex_structure_tags", {"ul", "ol", "table", "figure"}
+                )
+            ),
+            "list_level_mapping": context_spec.get(
+                "list_level_mapping",
+                {"bullet": 1, "numeric": 1, "alpha": 2, "roman": 3, "class_based": 1},
+            ),
+            "min_indent_em_rem": context_spec.get("min_indent_em_rem", 1.5),
+            "min_indent_px": context_spec.get("min_indent_px", 24),
+            "css_max_brace_depth": context_spec.get("css_max_brace_depth", 50),
+            "css_max_scan_iterations": context_spec.get(
+                "css_max_scan_iterations", 1_000_000
+            ),
+            "min_speaker_label_length": context_spec.get("min_speaker_label_length", 2),
+            "max_speaker_label_length": context_spec.get("max_speaker_label_length", 30),
+            "min_div_table_rows": context_spec.get("min_div_table_rows", 2),
+            "min_div_table_cols": context_spec.get("min_div_table_cols", 2),
+            "header_promotion_threshold": context_spec.get(
+                "header_promotion_threshold", 0.5
+            ),
+            "min_tables_for_fusion": context_spec.get("min_tables_for_fusion", 2),
+            "density_exemption_char_threshold": context_spec.get(
+                "density_exemption_char_threshold", 49
+            ),
+            "standard_density_cap": context_spec.get("standard_density_cap", 0.20),
+            "layout_enhanced_density_cap": context_spec.get(
+                "layout_enhanced_density_cap", 0.65
+            ),
+            "min_document_chars_for_processing": context_spec.get(
+                "min_document_chars_for_processing", 1
+            ),
+            "min_inline_toc_lines": context_spec.get("min_inline_toc_lines", 4),
+            "max_words_in_toc_airlock": context_spec.get(
+                "max_words_in_toc_airlock", 30
+            ),
+            "min_tabular_index_rows": context_spec.get("min_tabular_index_rows", 2),
+            "max_chars_in_initial_column": context_spec.get(
+                "max_chars_in_initial_column", 25
+            ),
+            "tlcr_threshold": context_spec.get("tlcr_threshold", 0.85),
+            "high_link_density_threshold": context_spec.get(
+                "high_link_density_threshold", 0.7
+            ),
+            "min_latex_length": context_spec.get("min_latex_length", 3),
+            "max_flatten_passes": context_spec.get("max_flatten_passes", 10),
+            "protected_prose_classes": frozenset(
+                context_spec.get(
+                    "protected_prose_classes",
+                    ["prose", "editorial", "editorial-prose"],
+                )
+            ),
+            "footnote_donor_file_density_threshold": context_spec.get(
+                "footnote_donor_file_density_threshold", 0.8
+            ),
+            "footnote_symmetry_threshold": context_spec.get(
+                "footnote_symmetry_threshold", 0.5
+            ),
+            "footnote_toc_heading_tags": frozenset(
+                context_spec.get("footnote_toc_heading_tags", {"h1", "h2", "h3"})
+            ),
+            # Add Blockquote Processor settings
+            "blockquote_ttr_threshold": context_spec.get("blockquote_ttr_threshold", 3.0),
+            "blockquote_anchor_density_threshold": context_spec.get(
+                "blockquote_anchor_density_threshold", 0.30
+            ),
+            "blockquote_ttr_smoothing_factor": context_spec.get(
+                "blockquote_ttr_smoothing_factor", 1
+            ),
+            "epigraph_max_length": context_spec.get("epigraph_max_length", 300),
+            "epigraph_heading_proximity_limit": context_spec.get(
+                "epigraph_heading_proximity_limit", 4
+            ),
+            "epigraph_heading_tags": frozenset(
+                context_spec.get("epigraph_heading_tags", {"h1", "h2", "h3", "h4", "h5", "h6"})
+            ),
+            "epigraph_blocking_tags": frozenset(
+                context_spec.get("epigraph_blocking_tags", {
+                    "p", "div", "section", "article", "aside", "main", "header", "footer", "nav",
+                    "ul", "ol", "dl", "figure", "figcaption", "picture", "video", "audio",
+                    "table", "blockquote", "pre", "form",
+                })
+            ),
+            "foreign_block_min_length": context_spec.get("foreign_block_min_length", 25),
+            "poetic_quote_min_lines": context_spec.get("poetic_quote_min_lines", 2),
+            "poetic_quote_min_content_line_length": context_spec.get(
+                "poetic_quote_min_content_line_length", 2
+            ),
+            "poetic_quote_max_mean_length": context_spec.get("poetic_quote_max_mean_length", 55),
+            "poetic_quote_max_variance": context_spec.get("poetic_quote_max_variance", 225.0),
+            "prose_quote_min_indent_em": context_spec.get("prose_quote_min_indent_em", 1.5),
+            "prose_quote_min_indent_px": context_spec.get("prose_quote_min_indent_px", 20),
+            "prose_quote_min_indent_percent": context_spec.get("prose_quote_min_indent_percent", 5),
+            "prose_quote_min_indent_pt": context_spec.get("prose_quote_min_indent_pt", 6.0),
+            "prose_quote_min_indent_cm": context_spec.get("prose_quote_min_indent_cm", 0.2),
+            "prose_quote_px_per_em": context_spec.get("prose_quote_px_per_em", 16.0),
+            "prose_quote_px_per_pt": context_spec.get("prose_quote_px_per_pt", 4.0 / 3.0),
+            "prose_quote_px_per_cm": context_spec.get("prose_quote_px_per_cm", 96.0 / 2.54),
+            "min_toc_line_chars": context_spec.get("min_toc_line_chars", 3),
+            "max_toc_line_chars": context_spec.get("max_toc_line_chars", 70),
+            "checklist_start_numbers": tuple(
+                context_spec.get("checklist_start_numbers", (0, 1))
+            ),
+            "accessibility_landmark_mapping": context_spec.get(
+                "accessibility_landmark_mapping",
+                {"bibliography": "bibliography", "glossary": "glossary"},
+            ),
+            "accessibility_page_break_comment_format": context_spec.get(
+                "accessibility_page_break_comment_format", " page-break: {page_id} "
+            ),
+            "accessibility_page_break_fallback_id": context_spec.get(
+                "accessibility_page_break_fallback_id", "unknown"
+            ),
+            "accessibility_doc_role_prefix": context_spec.get(
+                "accessibility_doc_role_prefix", "doc-"
+            ),
+            "accessibility_appendix_block_class": context_spec.get(
+                "accessibility_appendix_block_class", "appendix-block"
+            ),
+            "accessibility_no_split_chunk_strategy": context_spec.get(
+                "accessibility_no_split_chunk_strategy", "no_split"
+            ),
+            "blockquote_paragraph_like_blocking_tags": frozenset(
+                context_spec.get(
+                    "blockquote_paragraph_like_blocking_tags",
+                    {"p", "div", "ul", "ol", "table", "blockquote"},
+                )
+            ),
+            "poetry_block_class": context_spec.get("poetry_block_class", "poetry-block"),
+            "poetry_indent_char": context_spec.get("poetry_indent_char", "\u2003"),
+            "poetry_indent_only_line_class": context_spec.get(
+                "poetry_indent_only_line_class", "poetry-indent-only-line"
+            ),
+            "poetry_candidate_tags": context_spec.get(
+                "poetry_candidate_tags", ["blockquote"]
+            ),
+            "poetry_high_priority_candidate_tags": context_spec.get(
+                "poetry_high_priority_candidate_tags", ["div", "table"]
+            ),
+            "math_related_tags": frozenset(
+                context_spec.get("math_related_tags", {"math", "img", "svg"})
+            ),
+            "math_simple_latex_cues": tuple(
+                context_spec.get("math_simple_latex_cues", ("\\", "^", "_", "$"))
+            ),
+            "math_block_class": context_spec.get("math_block_class", "math-block"),
+            "math_inline_class": context_spec.get("math_inline_class", "math-inline"),
+            "math_block_delimiters": tuple(
+                context_spec.get("math_block_delimiters", ("$$", "$$"))
+            ),
+            "math_inline_delimiters": tuple(
+                context_spec.get("math_inline_delimiters", ("$", "$"))
+            ),
+            "table_valid_parents": frozenset(
+                context_spec.get(
+                    "table_valid_parents", {"tbody", "thead", "tfoot", "table"}
+                )
+            ),
+            "table_orphan_tr_contexts": frozenset(
+                context_spec.get(
+                    "table_orphan_tr_contexts",
+                    {"body", "div", "section", "article", "main"},
+                )
+            ),
+            "list_block_wrapper_tag": context_spec.get("list_block_wrapper_tag", "div"),
+            "list_block_wrapper_class": context_spec.get("list_block_wrapper_class", "list-block"),
+            "media_tags": frozenset(
+                context_spec.get(
+                    "media_tags",
+                    [
+                        "img",
+                        "svg",
+                        "video",
+                        "audio",
+                        "picture",
+                        "source",
+                        "canvas",
+                        "iframe",
+                        "math",
+                    ],
+                )
+            ),
+            "block_level_tags": frozenset(
+                context_spec.get(
+                    "block_level_tags",
+                    {
+                        "p", "div", "section", "article", "li", "ul", "ol", "dl", "dt", "dd",
+                        "table", "thead", "tbody", "tfoot", "tr", "td", "th", "figure",
+                        "header", "footer", "aside", "blockquote", "hr",
+                    },
+                )
+            ),
+            "semantic_attr_prefixes": tuple(
+                context_spec.get("semantic_attr_prefixes", ("aria-", "data-"))
+            ),
+            "semantic_attrs": frozenset(context_spec.get("semantic_attrs", ["role"])),
+            "tag_identifier_attr_value_limit": context_spec.get(
+                "tag_identifier_attr_value_limit", 75
+            ),
+            "mime_to_extension_map": context_spec.get(
+                "mime_to_extension_map",
+                {
+                    "image/jpeg": ".jpg",
+                    "image/png": ".png",
+                    "image/gif": ".gif",
+                    "image/svg+xml": ".svg",
+                    "image/webp": ".webp",
+                    "image/x-icon": ".ico",
+                    "image/vnd.microsoft.icon": ".ico",
+                    "audio/mpeg": ".mp3",
+                    "audio/mp4": ".m4a",
+                    "audio/ogg": ".ogg",
+                    "audio/wav": ".wav",
+                    "video/mp4": ".mp4",
+                    "video/webm": ".webm",
+                    "video/ogg": ".ogv",
+                },
+            ),
+            "image_extension_aliases": frozenset(
+                context_spec.get("image_extension_aliases", {".jpeg"})
+            ),
+            "image_extension_alias_map": context_spec.get(
+                "image_extension_alias_map", {".jpeg": ".jpg"}
+            ),
+            "data_uri_prefix": context_spec.get("data_uri_prefix", "data:"),
+        }
+        self.config = EngineConfiguration(**config_kwargs)
         self._is_contrastive_element_ids = context_spec.get(
             "is_contrastive_element_ids",
             [],
@@ -371,7 +590,7 @@ class MockProcessor:
 
     def get_extension_from_mime(self, mime_type: str) -> str:
         """Mock method to get extension from MIME type."""
-        return MIME_TO_EXTENSION_MAP.get(mime_type.lower(), "")
+        return get_extension_for_mime(mime_type, self.context.config) or ""
 
     def read_local_asset(self, src_attr, _file_path):  # W0613:unused-argument
         """Mock method to simulate reading a local asset."""
@@ -380,7 +599,7 @@ class MockProcessor:
         if isinstance(src_attr, str):
             return (
                 b"dummy file content",
-                normalize_extension(Path(src_attr).suffix) or ".dat",
+                normalize_extension(Path(src_attr).suffix, self.context.config) or ".dat",
             )
         return None
 
@@ -421,19 +640,13 @@ class MockProcessor:
 
     def get_media_type_and_increment_counter(self, ext: str) -> str:
         """Mock method to categorize media and update telemetry."""
-        from src.dom_normalizer.core.media_utils import (
-            AUDIO_EXTENSIONS,
-            IMAGE_EXTENSIONS,
-            VIDEO_EXTENSIONS,
-        )
-
-        if ext in IMAGE_EXTENSIONS:
+        if ext in self.context.config.image_extensions:
             self.local_image_count += 1
             return "images"
-        if ext in VIDEO_EXTENSIONS:
+        if ext in self.context.config.video_extensions:
             self.local_video_count += 1
             return "video"
-        if ext in AUDIO_EXTENSIONS:
+        if ext in self.context.config.audio_extensions:
             self.local_audio_count += 1
             return "audio"
         return "misc"
@@ -743,6 +956,8 @@ def _instantiate_strategy(
         strategy_instance.processor = mock_processor
     if hasattr(strategy_instance, "context"):
         strategy_instance.context = cast(RealBookStyleContext, context)
+    if hasattr(strategy_instance, "config"):
+        strategy_instance.config = context.config
     return strategy_instance, mock_processor
 
 

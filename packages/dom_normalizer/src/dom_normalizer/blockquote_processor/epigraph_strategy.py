@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 from enum import Enum, auto
-from typing import ClassVar, Final
 
 from bs4 import BeautifulSoup, Tag
 
@@ -31,49 +30,6 @@ class EpigraphStrategy(BaseBlockquoteStrategy):
     right-aligned paragraphs that appear immediately after a chapter or section
     heading, a common typographic pattern for introductory quotes.
     """
-
-    # Maximum character length for a block to be considered an epigraph.
-    MAX_EPIGRAPH_LENGTH: Final[int] = 300
-    # How many previous siblings to check for a heading.
-    HEADING_PROXIMITY_LIMIT: Final[int] = 4
-
-    # Tags that should be treated as headings when scanning for epigraphs.
-    HEADING_TAGS: ClassVar[frozenset[str]] = frozenset(
-        {"h1", "h2", "h3", "h4", "h5", "h6"},
-    )
-
-    # Tags that should block an epigraph if they appear between a heading
-    # and a candidate quote. These are "substantial" content containers.
-    BLOCKING_TAGS: ClassVar[frozenset[str]] = frozenset(
-        {
-            # Generic containers / paragraphs
-            "p",
-            "div",
-            "section",
-            "article",
-            "aside",
-            "main",
-            "header",
-            "footer",
-            "nav",
-            # Lists
-            "ul",
-            "ol",
-            "dl",
-            # Media / figure-like
-            "figure",
-            "figcaption",
-            "picture",
-            "video",
-            "audio",
-            # Tabular data
-            "table",
-            # Other block content that usually represents substantial content
-            "blockquote",
-            "pre",
-            "form",
-        },
-    )
 
     def _get_style_property(self, node: Tag, property_name: str) -> str | None:
         """Parses the style attribute of a node and returns the value of a given CSS property.
@@ -108,7 +64,8 @@ class EpigraphStrategy(BaseBlockquoteStrategy):
 
     def _is_within_max_length(self, node: Tag) -> bool:
         """Checks if the node's text content is within the max length."""
-        return len(node.get_text(strip=True)) <= self.MAX_EPIGRAPH_LENGTH
+        assert self.config is not None, "Config not bound to strategy"
+        return len(node.get_text(strip=True)) <= self.config.epigraph_max_length
 
     def _get_sibling_status(self, node: Tag) -> SiblingStatus:
         """Determines if a node is a heading, a blocking element, or neither.
@@ -119,11 +76,12 @@ class EpigraphStrategy(BaseBlockquoteStrategy):
         epigraph.
         """
         name = (node.name or "").lower()
+        assert self.config is not None, "Config not bound to strategy"
 
-        if name in self.HEADING_TAGS:
+        if name in self.config.epigraph_heading_tags:
             return SiblingStatus.HEADING
 
-        if name in self.BLOCKING_TAGS:
+        if name in self.config.epigraph_blocking_tags:
             return SiblingStatus.BLOCKER
 
         return SiblingStatus.NEITHER
@@ -138,8 +96,10 @@ class EpigraphStrategy(BaseBlockquoteStrategy):
         current_sibling = node.find_previous_sibling()
         found_non_ignorable = False
 
-        while current_sibling and nodes_to_check < self.HEADING_PROXIMITY_LIMIT:
-            if not is_ignorable_node(current_sibling):
+        assert self.config is not None, "Config not bound to strategy"
+        while current_sibling and nodes_to_check < self.config.epigraph_heading_proximity_limit:
+            assert self.context is not None, "Context not bound to strategy"
+            if not is_ignorable_node(current_sibling, self.context.config):
                 found_non_ignorable = True
                 nodes_to_check += 1
                 if isinstance(current_sibling, Tag):

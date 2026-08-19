@@ -41,7 +41,7 @@ Class Methods (AccessibilityNormalizer):
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, Final
+from typing import Any
 
 from bs4 import BeautifulSoup, Comment, Tag
 from bs4.element import PageElement
@@ -82,11 +82,6 @@ class AccessibilityNormalizer:
 
     _METADATA_KEY_PAGE_BREAKS = "page_breaks_anchored"
     _METADATA_KEY_LANDMARKS = "structural_landmarks_found"
-
-    _LANDMARK_MAPPING: Final[dict[str, str]] = {
-        "bibliography": "bibliography",
-        "glossary": "glossary",
-    }
 
     def __init__(self, context: BookStyleContext) -> None:
         """Initializes the AccessibilityNormalizer with book context and state.
@@ -155,7 +150,7 @@ class AccessibilityNormalizer:
         self._anchor_page_breaks(soup)
 
         landmarks_found: list[str] = []
-        for role_name, css_class in self._LANDMARK_MAPPING.items():
+        for role_name, css_class in self.context.config.accessibility_landmark_mapping.items():
             if self._wrap_landmark(soup, role_name, css_class):
                 # Dynamically set the 'found' flag, e.g., self.bibliography_found = True
                 setattr(self, f"{role_name}_found", True)
@@ -232,7 +227,9 @@ class AccessibilityNormalizer:
             elif page_id_val is not None:
                 page_id_str = str(page_id_val)
 
-            comment_text = f" page-break: {page_id_str.strip() or 'unknown'} "
+            comment_text = self.context.config.accessibility_page_break_comment_format.format(
+                page_id=page_id_str.strip() or self.context.config.accessibility_page_break_fallback_id
+            )
             comment = Comment(comment_text)
             node.replace_with(comment)
             self.page_breaks_anchored += 1
@@ -261,7 +258,7 @@ class AccessibilityNormalizer:
             return False
 
         changed = False
-        target_role = f"doc-{role_name}"
+        target_role = f"{self.context.config.accessibility_doc_role_prefix}{role_name}"
 
         # Filter directly for nodes whose role includes the target role to avoid
         # scanning all role-bearing nodes on large documents.
@@ -305,11 +302,11 @@ class AccessibilityNormalizer:
 
         # Add new classes if they don't exist, preserving order and avoiding duplicates.
         # This avoids reformatting the entire class attribute.
-        if "appendix-block" not in node_classes:
-            node_classes.append("appendix-block")
+        if self.context.config.accessibility_appendix_block_class not in node_classes:
+            node_classes.append(self.context.config.accessibility_appendix_block_class)
         if css_class not in node_classes:
             node_classes.append(css_class)
 
         node["class"] = " ".join(node_classes)
-        node["data-chunk-strategy"] = "no_split"
+        node["data-chunk-strategy"] = self.context.config.accessibility_no_split_chunk_strategy
         return True

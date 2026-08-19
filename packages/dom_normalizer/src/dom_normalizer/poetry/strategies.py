@@ -16,9 +16,10 @@ from bs4.element import NavigableString, PageElement, Tag
 
 from ..core import (
     DIALOGUE_DASH_RX,
-    SPEAKER_LABEL_RX,
     BookStyleContext,
+    get_speaker_label_rx,
 )
+from ..core.config import EngineConfiguration
 from .indentation_helper import PoetryIndentationHelper
 
 
@@ -87,6 +88,11 @@ class BasePoetryStrategy(ABC):
 class _HeuristicStrategy(BasePoetryStrategy):
     """A base for heuristic strategies with shared dialogue detection logic."""
 
+    def __init__(self, context: BookStyleContext):
+        self.context = context
+        self.config: EngineConfiguration = context.config
+        self.speaker_label_rx = get_speaker_label_rx(self.config)
+
     dialogue_exclusion_threshold: float
 
     def _get_text_from_line(self, line: Tag | list[PageElement]) -> str:
@@ -119,7 +125,7 @@ class _HeuristicStrategy(BasePoetryStrategy):
             if not text:
                 continue
             line_count += 1
-            if DIALOGUE_DASH_RX.match(text) or SPEAKER_LABEL_RX.match(text):
+            if DIALOGUE_DASH_RX.match(text) or self.speaker_label_rx.match(text):
                 dialogue_count += 1
         return (
             line_count > 0
@@ -138,6 +144,7 @@ class HeuristicTableStrategy(BasePoetryStrategy):
         Args:
             context: The shared BookStyleContext, providing access to configuration.
         """
+        self.context = context
         self.min_poetic_table_rows = getattr(
             context.config, "min_poetic_table_rows", 1
         )
@@ -203,6 +210,7 @@ class HeuristicSeparatorStrategy(_HeuristicStrategy):
 
     def __init__(self, context: BookStyleContext):
         """Initializes the strategy with configuration from the context."""
+        super().__init__(context)
         self.br_density_threshold = context.config.br_density_threshold
         self.dialogue_exclusion_threshold = context.config.dialogue_exclusion_threshold
         self.enjambment_ratio_threshold = context.config.enjambment_ratio_threshold
@@ -311,6 +319,7 @@ class HeuristicParagraphContainerStrategy(_HeuristicStrategy):
 
     def __init__(self, context: BookStyleContext):
         """Initializes the strategy with the book style context."""
+        super().__init__(context)
         self.context = context
         self.dialogue_exclusion_threshold = context.config.dialogue_exclusion_threshold
         # Normalize the word count threshold to ensure a sensible minimum value,
@@ -318,6 +327,9 @@ class HeuristicParagraphContainerStrategy(_HeuristicStrategy):
         max_words = getattr(context.config, "poetry_max_words_for_enjambment", 50)
         self.max_words_for_enjambment = (
             max_words if isinstance(max_words, int) and max_words > 0 else 50
+        )
+        self.poetry_prose_word_count_multiplier = (
+            context.config.poetry_prose_word_count_multiplier
         )
         self.indentation_helper = PoetryIndentationHelper(context)
 
@@ -355,7 +367,8 @@ class HeuristicParagraphContainerStrategy(_HeuristicStrategy):
             return False, "dialogue_excluded"
         # If any paragraph is too long, it's likely prose.
         if any(
-            len(p.get_text(strip=True).split()) >= self.max_words_for_enjambment * 2
+            len(p.get_text(strip=True).split())
+            >= self.max_words_for_enjambment * self.poetry_prose_word_count_multiplier
             for p in paragraphs
         ):
             return False, "paragraph_too_long"
@@ -369,7 +382,7 @@ class HeuristicParagraphContainerStrategy(_HeuristicStrategy):
 
         if (
             len(p_node.get_text(strip=True).split())
-            >= self.max_words_for_enjambment * 2
+            >= self.max_words_for_enjambment * self.poetry_prose_word_count_multiplier
         ):
             return False, "paragraph_too_long"
 

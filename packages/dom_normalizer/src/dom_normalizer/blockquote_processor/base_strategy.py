@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING, Any, Final
 from bs4 import BeautifulSoup, Tag
 from bs4.element import PageElement
 
-from ..core import BookStyleContext
-from ..core.dom_utils import coerce_class_list, is_ignorable_node
+from ..core import BookStyleContext, EngineConfiguration
+from ..core.dom_utils import coerce_class_list, get_tag_identifier, is_ignorable_node
 
 if TYPE_CHECKING:
     from .processor import BlockquoteProcessor
@@ -27,14 +27,9 @@ PROCESSOR_UNBOUND_MSG: Final[str] = (
 class BaseBlockquoteStrategy(ABC):
     """Abstract base class for all blockquote detection strategies."""
 
-    # Minimum Text-to-Tag Ratio to be considered valid prose.
-    TTR_THRESHOLD: Final[float] = 3.0
-    # Maximum ratio of anchor text characters to total characters.
-    ANCHOR_DENSITY_THRESHOLD: Final[float] = 0.30
-    # Smoothing factor for TTR calculation to avoid division by zero.
-    TTR_SMOOTHING_FACTOR: Final[int] = 1
-
     def __init__(self) -> None:
+        self.config: EngineConfiguration | None = None
+        self.context: BookStyleContext | None = None
         """Initializes the strategy.
 
         Mutations:
@@ -177,11 +172,12 @@ class BaseBlockquoteStrategy(ABC):
         if len(nodes) <= 1:
             return True
 
-        ttr = total_words / (total_tags + self.TTR_SMOOTHING_FACTOR)
-        if ttr < self.TTR_THRESHOLD:
+        assert self.config is not None, "Config not bound to strategy"
+        ttr = total_words / (total_tags + self.config.blockquote_ttr_smoothing_factor)
+        if ttr < self.config.blockquote_ttr_threshold:
             log.debug(
                 "Candidate rejected by TTR filter (TTR < %.1f). TTR: %.2f",
-                self.TTR_THRESHOLD,
+                self.config.blockquote_ttr_threshold,
                 ttr,
             )
             return False
@@ -204,11 +200,12 @@ class BaseBlockquoteStrategy(ABC):
         if total_chars == 0:
             return False
 
+        assert self.config is not None, "Config not bound to strategy"
         anchor_ratio = anchor_chars / total_chars
-        if anchor_ratio > self.ANCHOR_DENSITY_THRESHOLD:
+        if anchor_ratio > self.config.blockquote_anchor_density_threshold:
             log.debug(
                 "Candidate rejected by anchor density filter (>%.0f%%). Ratio: %.2f",
-                self.ANCHOR_DENSITY_THRESHOLD * 100,
+                self.config.blockquote_anchor_density_threshold * 100,
                 anchor_ratio,
             )
             return False
@@ -352,14 +349,16 @@ class BaseBlockquoteStrategy(ABC):
     def _get_prev_non_ignorable_sibling(self, node: Tag) -> Tag | None:
         """Finds the previous non-ignorable sibling of a node."""
         sibling = node.previous_sibling
-        while sibling and is_ignorable_node(sibling):
+        assert self.config is not None, "Config not bound to strategy"
+        while sibling and is_ignorable_node(sibling, self.config):
             sibling = sibling.previous_sibling
         return sibling if isinstance(sibling, Tag) else None
 
     def _get_next_non_ignorable_sibling(self, node: Tag) -> Tag | None:
         """Finds the next non-ignorable sibling of a node."""
         sibling = node.next_sibling
-        while sibling and is_ignorable_node(sibling):
+        assert self.config is not None, "Config not bound to strategy"
+        while sibling and is_ignorable_node(sibling, self.config):
             sibling = sibling.next_sibling
         return sibling if isinstance(sibling, Tag) else None
 
@@ -385,8 +384,7 @@ class BaseBlockquoteStrategy(ABC):
             )
         return first_parent
 
-    @staticmethod
-    def _format_node_for_log(node: Any, max_text_len: int = 40) -> str:
+    def _format_node_for_log(self, node: Any) -> str:
         """Return a compact, log-friendly representation of a node.
 
         The goal is to aid debugging without bloating log entries.
@@ -412,10 +410,9 @@ class BaseBlockquoteStrategy(ABC):
             # If introspection fails, fall back to an empty string.
             text = ""
 
-        if text:
-            if len(text) > max_text_len:
-                text = f"{text[:max_text_len]}…"
-            return f"<{tag} text={text!r}>"
+        if text and self.config:
+            assert self.config is not None
+            return get_tag_identifier(node, self.config.tag_identifier_attr_value_limit)
         return f"<{tag}>"
 
     def _validate_consecutiveness(
@@ -447,9 +444,10 @@ class BaseBlockquoteStrategy(ABC):
         """
         for a, b in itertools.pairwise(indices):
             if b - a > 1:  # There's a gap between the nodes.
-                intervening_nodes = parent_contents[a + 1 : b]
+                intervening_nodes = parent_contents[a + 1 : b] # pyright: ignore[reportUnknownArgumentType]
+                assert self.config is not None
                 if non_ignorable_nodes := [
-                    node for node in intervening_nodes if not is_ignorable_node(node)
+                    node for node in intervening_nodes if not is_ignorable_node(node, self.config)
                 ]:
                     formatted_intervening = [
                         self._format_node_for_log(n) for n in non_ignorable_nodes

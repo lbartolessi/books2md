@@ -42,13 +42,14 @@ import logging
 import re
 from collections import defaultdict
 from collections.abc import Mapping
-from typing import Any, cast
+from typing import Any, Final, cast
 
 from bs4 import BeautifulSoup, Tag
 from bs4.element import NavigableString, PageElement
 
 from .core import BookStyleContext, PipelineStatus
 from .core.component_registry import register_processor_factory
+from .core.config import EngineConfiguration
 from .core.dom_utils import (
     coerce_class_list,
     find_all_snapshot,
@@ -60,15 +61,6 @@ log = logging.getLogger(__name__)
 
 
 # --- Module-level Constants and Pre-compiled Regexes ---
-MIN_HEADING_LEVEL: int = 1
-MAX_HEADING_LEVEL: int = 6
-VALID_HEADING_TAGS: frozenset[str] = frozenset(
-    f"h{i}" for i in range(MIN_HEADING_LEVEL, MAX_HEADING_LEVEL + 1)
-)
-# Pre-compiled regex for matching valid heading tags (e.g., h1-h6).
-HEADING_TAG_RX: re.Pattern[str] = re.compile(
-    rf"^h[{MIN_HEADING_LEVEL}-{MAX_HEADING_LEVEL}]$",
-)
 # Pre-compiled regex for validating CSS class names that don't require escaping.
 # This ensures class names are safe to use in CSS selectors without escaping.
 _VALID_CSS_CLASS_RX: re.Pattern[str] = re.compile(r"^[a-zA-Z_][\w-]*$")
@@ -118,11 +110,26 @@ class _DemotionStrategy:
 class _HeadingNormalizerConfig:
     """A dedicated configuration object for HeadingNormalizer."""
 
-    MAX_SANE_HEADING_LENGTH: int = 1000
-
-    def __init__(self, config: Any):
+    def __init__(self, config: EngineConfiguration):
         """Initializes and validates all configuration-related attributes."""
         self.config = config
+        # Initialize internal attributes from config
+        self.max_sane_heading_length: int = self.config.max_sane_heading_length
+        self.min_heading_level: int = self.config.min_heading_level
+        self.max_heading_level: int = self.config.max_heading_level
+
+        # Import Final from typing
+
+        # Derived properties
+        # Derived properties
+        self.VALID_HEADING_TAGS: Final[frozenset[str]] = frozenset(
+            f"h{i}" for i in range(self.min_heading_level, self.max_heading_level + 1)
+        )
+        self.HEADING_TAG_RX: Final[re.Pattern[str]] = re.compile(
+            rf"^h[{self.min_heading_level}-{self.max_heading_level}]$",
+        )
+
+        # Other configurable attributes
         self.initial_heading_level: int = 1
         self.max_heading_length: int = 150
         self.max_link_density: float = 0.5
@@ -203,8 +210,8 @@ class _HeadingNormalizerConfig:
         self.initial_heading_level = self._validate_bounded_int(
             initial_level_cfg,
             "initial_heading_level",
-            MIN_HEADING_LEVEL,
-            MAX_HEADING_LEVEL,
+            self.min_heading_level,
+            self.max_heading_level,
             1,
         )
 
@@ -216,8 +223,8 @@ class _HeadingNormalizerConfig:
         self.max_heading_length = self._validate_bounded_int(
             max_heading_length_cfg,
             "max_heading_length",
-            1,
-            self.MAX_SANE_HEADING_LENGTH,
+            self.min_heading_level, # Use min_heading_level as lower bound for length
+            self.max_sane_heading_length,
             150,
         )
 
@@ -240,11 +247,10 @@ class _HeadingNormalizerConfig:
         bold_level_normalized = str(bold_level_str).lower()
         if level_match := re.match(r"^h(\d+)$", bold_level_normalized):
             raw_level = int(level_match[1])
-            clamped_level = max(
-                MIN_HEADING_LEVEL,
-                min(MAX_HEADING_LEVEL, raw_level),
+            clamped_level = max( # pyright: ignore[reportUnknownArgumentType]
+                self.min_heading_level,
+                min(self.max_heading_level, raw_level),
             )
-
             if raw_level != clamped_level:
                 self._add_warning(
                     f"bold_paragraph_heading_level '{bold_level_str}' out of range. "
@@ -269,8 +275,8 @@ class _HeadingNormalizerConfig:
 
     def _is_valid_heading_level_str(self, level_str: Any) -> bool:
         """Checks if a string is a valid heading level (e.g., 'h1' through 'h6')."""
-        return bool(
-            isinstance(level_str, str) and HEADING_TAG_RX.match(level_str),
+        return bool( # pyright: ignore[reportUnknownArgumentType]
+            isinstance(level_str, str) and self.HEADING_TAG_RX.match(level_str),
         )
 
     def _is_valid_heading_classes_list(self, classes: Any) -> bool:
@@ -411,17 +417,16 @@ class _HeadingNormalizerConfig:
 class _ClassPromotionHandler:
     """Handles the logic for promoting elements to headings based on CSS classes."""
 
-    def __init__(
-        self,
-        context: BookStyleContext,
-        class_to_level_map: dict[str, str],
-    ):
+    def __init__(self, context: BookStyleContext, hn_config: _HeadingNormalizerConfig):
         self.context = context
-        self.class_to_level_map = class_to_level_map
+        self.hn_config = hn_config
+        # The class_to_level_map is part of hn_config, but it's used directly in promote()
+        # so it's convenient to have it here.
+        self.class_to_level_map = hn_config.class_to_level_map
 
     def _is_heading(self, tag: PageElement) -> bool:
         """Checks if a PageElement is a semantic heading tag (h1-h6)."""
-        return isinstance(tag, Tag) and tag.name in VALID_HEADING_TAGS
+        return isinstance(tag, Tag) and tag.name in self.hn_config.VALID_HEADING_TAGS
 
     def _find_best_promotion_for_tag(
         self,
@@ -539,7 +544,7 @@ class HeadingNormalizer:
 
     def _is_heading(self, tag: PageElement) -> bool:
         """Checks if a PageElement is a semantic heading tag (h1-h6)."""
-        return isinstance(tag, Tag) and tag.name in VALID_HEADING_TAGS
+        return isinstance(tag, Tag) and tag.name in self.hn_config.VALID_HEADING_TAGS
 
     def _reset_state(self) -> None:
         """Resets the internal heading level and telemetry for a new book/document."""
@@ -574,7 +579,7 @@ class HeadingNormalizer:
         self._promote_styled_paragraphs(soup)
 
         # Create a snapshot of all headings after the promotion pass.
-        all_headings = find_all_snapshot(soup, HEADING_TAG_RX)
+        all_headings = find_all_snapshot(soup, self.hn_config.HEADING_TAG_RX)
         headings_snapshot = tuple(h for h in all_headings if isinstance(h, Tag))
 
         # First pass: Demote headings based on content rules. This modifies the
@@ -604,8 +609,7 @@ class HeadingNormalizer:
         self._promote_bold_paragraphs(soup)
         if self.hn_config.class_to_level_map:
             class_promoter = _ClassPromotionHandler(
-                self.context,
-                self.hn_config.class_to_level_map,
+                self.context, self.hn_config
             )
             self.headings_promoted += class_promoter.promote(soup)
         self._promote_aria_headings(soup)
@@ -653,9 +657,9 @@ class HeadingNormalizer:
         Returns:
             True if the check passes or is disabled, False otherwise.
         """
-        if not self.hn_config.bold_promotion_requires_solitary_bold_tag:
+        if not self.hn_config.bold_promotion_requires_solitary_bold_tag: # pyright: ignore[reportUnnecessaryComparison]
             return True
-        children = [c for c in p_tag.children if not is_ignorable_node(c)]
+        children = [c for c in p_tag.children if not is_ignorable_node(c, self.context.config)]
         return len(children) == 1 and children[0] is emphasis_tag
 
     def _has_text_only_children(self, emphasis_tag: Tag) -> bool:
@@ -728,10 +732,10 @@ class HeadingNormalizer:
         original_level = int(aria_level_str)
         level = original_level
         # Clamp out-of-range levels into our supported range
-        if not MIN_HEADING_LEVEL <= level <= MAX_HEADING_LEVEL:
+        if not self.hn_config.min_heading_level <= level <= self.hn_config.max_heading_level:
             level = min(
-                MAX_HEADING_LEVEL,
-                max(MIN_HEADING_LEVEL, level),
+                self.hn_config.max_heading_level,
+                max(self.hn_config.min_heading_level, level),
             )
             log.debug(
                 "Clamped out-of-range aria-level %s to %s for ARIA heading",

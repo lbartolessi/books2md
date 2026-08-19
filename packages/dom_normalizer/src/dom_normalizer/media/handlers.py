@@ -21,12 +21,6 @@ from bs4 import BeautifulSoup
 from bs4.element import Tag
 
 from ..core.dom_utils import snapshot_iterator
-from ..core.media_utils import (
-    AUDIO_EXTENSIONS,
-    DATA_URI_PREFIX,
-    IMAGE_EXTENSIONS,
-    VIDEO_EXTENSIONS,
-)
 
 if TYPE_CHECKING:
     from .processor import MediaProcessor
@@ -208,7 +202,7 @@ class Base64MediaHandler(BaseMediaHandler):
 
         return (
             isinstance(src, str)
-            and src.startswith(DATA_URI_PREFIX)
+            and src.startswith(self.context.config.data_uri_prefix)
             and ";base64," in src
         )
 
@@ -225,7 +219,9 @@ class Base64MediaHandler(BaseMediaHandler):
             ValueError: If the Data URI format is invalid, not Base64 encoded,
                 or if the MIME type is missing.
         """
-        if not src_attr.startswith(DATA_URI_PREFIX) or "," not in src_attr:
+        if not src_attr.startswith(
+            self.context.config.data_uri_prefix,
+        ) or "," not in src_attr:
             raise ValueError(f"Invalid Data URI format: {src_attr[:100]}")
 
         header, encoded_data = src_attr.split(",", 1)
@@ -317,11 +313,15 @@ class LocalMediaHandler(BaseMediaHandler):
         return any(
             (
                 isinstance(src_attr, str)
-                and not src_attr.startswith(
-                    ("http://", "https://", "//", DATA_URI_PREFIX),  # NOSONAR
+                and not src_attr.startswith( # NOSONAR
+                    ("http://", "https://", "//", self.context.config.data_uri_prefix)
                 )
                 and Path(src_attr).suffix.lower()
-                in (AUDIO_EXTENSIONS | VIDEO_EXTENSIONS | IMAGE_EXTENSIONS)
+                in (
+                    self.context.config.audio_extensions
+                    | self.context.config.video_extensions
+                    | self.context.config.image_extensions
+                )
             )
             for src_attr in src_attrs
         )

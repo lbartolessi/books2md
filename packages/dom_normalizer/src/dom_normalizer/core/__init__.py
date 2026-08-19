@@ -23,6 +23,7 @@ external resources.
 """
 
 from .config import EngineConfiguration
+from .config_loader import get_book_specific_config, load_global_config
 from .constants import (
     BLOCKQUOTE_ELEMENT_CLASS,
     BOLD_ELEMENT_CLASS,
@@ -30,11 +31,10 @@ from .constants import (
     DIALOGUE_DASH_RX,
     FLOATING_ELEMENT_CLASS,
     ITALIC_ELEMENT_CLASS,
-    MIN_VIABLE_LIST_ITEMS,
     PAGE_MARKER_RX,
     POETIC_MID_PUNCTUATION,
     POETIC_TERMINAL_PUNCTUATION,
-    SPEAKER_LABEL_RX,
+    get_speaker_label_rx,
 )
 from .context import BookStyleContext
 from .lang_codes import ISOLanguageCode
@@ -47,13 +47,14 @@ __all__ = [
     "DIALOGUE_DASH_RX",
     "FLOATING_ELEMENT_CLASS",
     "ITALIC_ELEMENT_CLASS",
-    "MIN_VIABLE_LIST_ITEMS",
     "PAGE_MARKER_RX",
     "POETIC_MID_PUNCTUATION",
     "POETIC_TERMINAL_PUNCTUATION",
-    "SPEAKER_LABEL_RX",
     "BookStyleContext",
     "EngineConfiguration",
     "ISOLanguageCode",
     "PipelineStatus",
+    "get_speaker_label_rx",
+    "load_global_config",
+    "get_book_specific_config",
 ]
