@@ -217,6 +217,37 @@ class ProseQuoteStrategy(BaseBlockquoteStrategy):
         )
         return None
 
+    def _are_indents_compatible(
+        self,
+        first_indent: tuple[float, str],
+        second_indent: tuple[float, str],
+    ) -> bool:
+        """Return whether two valid indents are close after unit conversion."""
+        assert self.config is not None, "Config not bound to strategy"
+        config = self.config
+
+        first_value, first_unit = first_indent
+        second_value, second_unit = second_indent
+
+        factors = {
+            "em": config.prose_quote_px_per_em,
+            "rem": config.prose_quote_px_per_em,
+            "px": 1.0,
+            "pt": config.prose_quote_px_per_pt,
+            "cm": config.prose_quote_px_per_cm,
+        }
+
+        if first_unit == second_unit:
+            return abs(first_value - second_value) <= 0.5
+
+        first_px = first_value * factors.get(first_unit, 0)
+        second_px = second_value * factors.get(second_unit, 0)
+
+        if not first_px or not second_px:
+            return False
+
+        return abs(first_px - second_px) <= config.prose_quote_px_per_em * 0.5
+
     def _collect_sequence(
         self,
         start_node: Tag,

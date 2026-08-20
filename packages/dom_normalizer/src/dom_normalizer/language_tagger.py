@@ -37,7 +37,6 @@ from .core.dom_utils import generate_processor_metadata, snapshot_iterator
 log = logging.getLogger(__name__)
 
 
-@register_processor_factory("language_tagger")
 class LanguageTagger:
     """A semantic micro-normalizer for tagging language shifts in text."""
 
@@ -291,3 +290,6 @@ class LanguageTagger:
             nodes_tagged=self.nodes_tagged,
             language_shifts_detected=self.language_shifts_detected,
         )
+
+
+register_processor_factory("language_tagger", factory_func=LanguageTagger)

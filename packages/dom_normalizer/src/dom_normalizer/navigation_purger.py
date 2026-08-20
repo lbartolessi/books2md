@@ -93,7 +93,6 @@ from .core.navigation_utils import (
 log = logging.getLogger(__name__)
 
 
-@register_processor_factory("navigation_purger")
 class NavigationPurger:
     """A multi-pillar engine for detecting and purging redundant navigation structures."""
 
@@ -688,7 +687,7 @@ class NavigationPurger:
         links = tag.find_all("a")
         link_text_len = sum(len(a.get_text(strip=True)) for a in links)
         return link_text_len / total_text_len
- 
+
     def _is_navigation_like_element(self, tag: Tag) -> bool:
         """Checks if a tag has navigation-like attributes or classes."""
         if tag.name == "nav" or tag.has_attr("role") and "navigation" in coerce_class_list(tag["role"]):
@@ -725,3 +724,6 @@ class NavigationPurger:
         self._purge_nodes(soup, [tag])
         self.nav_elements_purged += 1
         log.debug(message, tag)
+
+
+register_processor_factory("navigation_purger", NavigationPurger)

@@ -61,7 +61,6 @@ from .core.dom_utils import (
 log = logging.getLogger(__name__)
 
 
-@register_processor_factory("table_normalizer")
 class TableNormalizer:
     """A forensic reconstruction and relational consolidation engine for tables.
 
@@ -604,3 +603,6 @@ class TableNormalizer:
         if isinstance(first_row, Tag):
             return len(first_row.find_all(["td", "th"]))
         return 0
+
+
+register_processor_factory("table_normalizer", TableNormalizer)

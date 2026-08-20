@@ -60,8 +60,8 @@ Output Format:
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
-from typing import Any
+from collections.abc import Callable, Mapping
+from typing import Any, cast
 
 from bs4 import BeautifulSoup
 from bs4.element import NavigableString, PageElement, Tag
@@ -303,7 +303,13 @@ class _ContrastiveEmphasisHandler:
             i_grandparent.decompose()
 
 
-@register_processor_factory("emphasis_normalizer")
+@cast(
+    Callable[[type["EmphasisNormalizer"]], type["EmphasisNormalizer"]],
+    register_processor_factory(
+        "emphasis_normalizer",
+        factory_func=lambda context: EmphasisNormalizer(context),
+    ),
+)
 class EmphasisNormalizer:
     """A semantic micro-normalizer for flattening and unifying emphasis styles."""
 

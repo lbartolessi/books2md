@@ -30,9 +30,7 @@ from .strategies import BasePoetryStrategy
 
 log = logging.getLogger(__name__)
 
-
 @register_processor_factory("poetry")
-@register_processor_factory("poetry_normalizer")
 class PoetryNormalizer:
     """Identifies and normalizes blocks of poetic verse into a standard structure."""
 
@@ -522,3 +520,6 @@ class PoetryNormalizer:
 
         self._populate_poetry_block(lines, poetry_block, soup)
         self._replace_target_with_poetry_block(target, poetry_block)
+
+
+register_processor_factory("poetry", PoetryNormalizer)

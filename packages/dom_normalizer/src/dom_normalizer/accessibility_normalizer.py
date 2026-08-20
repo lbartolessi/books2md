@@ -51,7 +51,6 @@ from .core.component_registry import register_processor_factory
 from .core.dom_utils import coerce_class_list, generate_processor_metadata
 
 
-@register_processor_factory("accessibility_normalizer")
 class AccessibilityNormalizer:
     """Orchestrates the normalization of non-footnote accessibility landmarks.
 
@@ -310,3 +309,6 @@ class AccessibilityNormalizer:
         node["class"] = " ".join(node_classes)
         node["data-chunk-strategy"] = self.context.config.accessibility_no_split_chunk_strategy
         return True
+
+
+register_processor_factory("accessibility_normalizer", AccessibilityNormalizer)

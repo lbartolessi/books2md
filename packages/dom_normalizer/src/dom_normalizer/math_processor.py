@@ -6,7 +6,7 @@ normalize various representations of mathematical content (MathML, LaTeX in
 image attributes) into a consistent, Pandoc-compatible format. This ensures
 that mathematical expressions are both visually preserved and semantically
 structured for downstream processing by RAG and LLM systems.
- 
+
 The processor handles two main cases:
 1.  **Pure MathML (`<math>` tags):** Converts MathML into LaTeX strings using
     an XSLT transformation and wraps them in appropriate `<div>` or `<span>`
@@ -70,7 +70,6 @@ except ImportError:
 
 
 
-@register_processor_factory("math_processor")
 class MathProcessor:
     """A format normalization engine for mathematical expressions.
 
@@ -277,7 +276,7 @@ class MathProcessor:
             # If strict tokens are missing, try a secondary, lighter heuristic.
             if lacks_configured_tokens and not self._looks_like_simple_latex(latex_raw):
                 return None
- 
+
         # Prefer explicit math attributes in a stable order.
         return latex_raw
 
@@ -757,3 +756,8 @@ class MathProcessor:
             hybrid_blocks_structured=self.hybrid_blocks_created,
         )
         return soup, metadata
+
+
+# Register the class itself as the factory after its definition. The registry
+# API requires the factory as a second argument and does not return a decorator.
+register_processor_factory("math_processor", MathProcessor)

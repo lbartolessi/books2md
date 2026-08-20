@@ -23,11 +23,7 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
-@register_processor_factory("blockquote_processor")
-def create_blockquote_processor(
-    context: BookStyleContext,
-    **kwargs: Any,
-) -> BlockquoteProcessor:
+def _create_blockquote_processor(context: BookStyleContext, **kwargs: Any) -> BlockquoteProcessor:
     """Factory function to create a BlockquoteProcessor instance with its strategies."""
     strategies = [
         EpigraphStrategy(),
@@ -35,8 +31,16 @@ def create_blockquote_processor(
         ProseQuoteStrategy(),
         ForeignBlockStrategy(),
     ]
-    # This assumes BlockquoteProcessor's __init__ is `(self, context, strategies)`
     return BlockquoteProcessor(context, strategies=strategies)
+
+
+@register_processor_factory("blockquote_processor", factory_func=_create_blockquote_processor)  # type: ignore[misc]
+def create_blockquote_processor(
+    context: BookStyleContext,
+    **kwargs: Any,
+) -> BlockquoteProcessor:
+    """Factory function to create a BlockquoteProcessor instance with its strategies."""
+    return _create_blockquote_processor(context, **kwargs)
 
 
 class StrategyError(Exception):
@@ -227,7 +231,7 @@ class BlockquoteProcessor:
                     strategy.__class__.__name__,
                     e,
                 )
-            except Exception as e:  
+            except Exception as e:
                 # Do not intercept interpreter-exiting exceptions.
                 if isinstance(e, (KeyboardInterrupt, SystemExit)):
                     raise

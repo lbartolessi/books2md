@@ -19,43 +19,43 @@ import tempfile
 import traceback
 from typing import Any, Final, cast
 
-# Add the project root to the Python path to allow imports from 'src'.
-# This ensures that `importlib.import_module("src.dom_normalizer...")` works
-# when the script is run from the project root as `python tests/run_yaml_tests.py`.
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
-
 import yaml
 from bs4 import BeautifulSoup, Tag
-
-# NEW: Import all components to populate the registry.
-try:
-    from src.dom_normalizer import (
-        components,  # pyright: ignore[reportUnusedImport] # noqa: F401
-    )
-    from src.dom_normalizer.core.component_registry import create_processor
-except ImportError as e:
-    print(f"\033[91mFailed to import core components: {e}\033[0m")
-    sys.exit(1)
-
-from src.dom_normalizer.core.config import (
+from dom_normalizer.core.component_registry import get_processor_factory
+from dom_normalizer.core.config import (
     EngineConfiguration,
 )
-from src.dom_normalizer.core.context import (
+from dom_normalizer.core.context import (
     BookStyleContext as RealBookStyleContext,
 )
-from src.dom_normalizer.core.dom_utils import (
+from dom_normalizer.core.dom_utils import (
     coerce_class_list,
     find_all_snapshot,
     normalize_style_attribute,
     strip_css_properties,
 )
-from src.dom_normalizer.core.lang_codes import ISOLanguageCode
-from src.dom_normalizer.core.media_utils import (
+from dom_normalizer.core.lang_codes import ISOLanguageCode
+from dom_normalizer.core.media_utils import (
     get_extension_for_mime,
     normalize_extension,
 )
+
+# Add the project root to the Python path to allow imports from 'src'.
+# This ensures that `importlib.import_module("dom_normalizer...")` works
+# when the script is run from the project root as `python tests/run_yaml_tests.py`.
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+# NEW: Import all components to populate the registry.
+try:
+    from dom_normalizer import (
+        components,  # pyright: ignore[reportUnusedImport] # noqa: F401
+    )
+except ImportError as e:
+    print(f"\033[91mFailed to import core components: {e}\033[0m")
+    sys.exit(1)
+
 
 # --- ANSI COLOR CONSTANTS ---
 GREEN = "\033[92m"
@@ -749,14 +749,14 @@ def load_strategy_class(package_name: str, class_name_str: str):
     ).lstrip("_")
 
     # Attempt 1: Direct path
-    module_path_1 = f"src.dom_normalizer.{package_name}.{module_file_name}"
+    module_path_1 = f"dom_normalizer.{package_name}.{module_file_name}"
     attempted_paths = [module_path_1]
     with contextlib.suppress(ModuleNotFoundError, AttributeError):
         module = importlib.import_module(module_path_1)
         return getattr(module, class_name_str)
 
-    # Attempt 2: Nested 'strategies' sub-package (e.g., src.dom_normalizer.footnotes.strategies.anomaly_strategy)
-    module_path_2 = f"src.dom_normalizer.{package_name}.strategies.{module_file_name}"
+    # Attempt 2: Nested 'strategies' sub-package (e.g., dom_normalizer.footnotes.strategies.anomaly_strategy)
+    module_path_2 = f"dom_normalizer.{package_name}.strategies.{module_file_name}"
     attempted_paths.append(module_path_2)
     with contextlib.suppress(ModuleNotFoundError, AttributeError):
         module = importlib.import_module(module_path_2)
@@ -766,16 +766,16 @@ def load_strategy_class(package_name: str, class_name_str: str):
     if "_footnote" in module_file_name:
         short_module_file_name = module_file_name.replace("_footnote", "")
         module_path_3 = (
-            f"src.dom_normalizer.{package_name}.strategies.{short_module_file_name}"
+            f"dom_normalizer.{package_name}.strategies.{short_module_file_name}"
         )
         attempted_paths.append(module_path_3)
         with contextlib.suppress(ModuleNotFoundError, AttributeError):
             module = importlib.import_module(module_path_3)
             return getattr(module, class_name_str)
 
-    # NEW Attempt 4: Multiple strategies in a single 'strategies.py' file (e.g., src.dom_normalizer.lists.strategies)
+    # NEW Attempt 4: Multiple strategies in a single 'strategies.py' file (e.g., dom_normalizer.lists.strategies)
     # In this case, the module name is just 'strategies', and the class is inside it.
-    module_path_4 = f"src.dom_normalizer.{package_name}.strategies"
+    module_path_4 = f"dom_normalizer.{package_name}.strategies"
     attempted_paths.append(module_path_4)
     with contextlib.suppress(ModuleNotFoundError, AttributeError):
         module = importlib.import_module(module_path_4)
@@ -789,7 +789,7 @@ def load_strategy_class(package_name: str, class_name_str: str):
 
 def load_handler_class(package_name: str, class_name_str: str):
     """Dynamically loads a media handler class from the 'handlers' module."""
-    module_path = f"src.dom_normalizer.{package_name}.handlers"
+    module_path = f"dom_normalizer.{package_name}.handlers"
     try:
         module = importlib.import_module(module_path)
         return getattr(module, class_name_str)
@@ -797,6 +797,31 @@ def load_handler_class(package_name: str, class_name_str: str):
         raise ImportError(
             f"Could not load handler class '{class_name_str}' from {module_path}",
         ) from exc
+
+
+def create_processor(
+    package_name: str,
+    context: MockBookStyleContext,
+    **factory_kwargs: Any,
+) -> Any:
+    factory = get_processor_factory(package_name)
+
+    kwargs = {"context": context, **factory_kwargs}
+    signature = inspect.signature(factory)
+
+    accepts_kwargs = any(
+        parameter.kind == inspect.Parameter.VAR_KEYWORD
+        for parameter in signature.parameters.values()
+    )
+
+    if not accepts_kwargs:
+        kwargs = {
+            name: value
+            for name, value in kwargs.items()
+            if name in signature.parameters
+        }
+
+    return factory(**kwargs)
 
 
 def normalize_html(html_str: str) -> str:
@@ -1022,6 +1047,123 @@ def _execute_process_method_with_inspection(
             "The test runner supports 2, 3, 4, or 5 parameters (including self).",
         )
 
+def _resolve_indent_tuple(
+    param_name: str,
+    soup: BeautifulSoup,
+    strategy_instance: Any,
+    indent_state: dict[str, Any],
+) -> Any:
+    """Resolve the next valid indentation tuple for the given parameter."""
+    if not hasattr(strategy_instance, "_get_valid_indent_tuple"):
+        raise TypeError(
+            f"{strategy_instance.__class__.__name__} no puede generar "
+            "tuplas de indentación.",
+        )
+
+    if indent_state["tuples"] is None:
+        indent_state["tuples"] = [
+            indent
+            for tag in soup.find_all(["p", "div"])
+            if (indent := strategy_instance._get_valid_indent_tuple(tag)) is not None
+        ]
+    if indent_state["index"] >= len(indent_state["tuples"]):
+        raise ValueError(
+            f"No hay suficiente indentación para {param_name}",
+        )
+
+    result = indent_state["tuples"][indent_state["index"]]
+    indent_state["index"] += 1
+    return result
+
+
+def _build_method_args(
+    parameter: inspect.Parameter,
+    node: Any,
+    text: str,
+    soup: BeautifulSoup,
+    context: MockBookStyleContext,
+    strategy_instance: Any,
+    indent_state: dict[str, Any],
+) -> Any:
+    """Build a single argument based on parameter name and type."""
+    param_name = parameter.name
+
+    if param_name in {
+        "node",
+        "tag",
+        "element",
+        "line_node",
+        "target",
+        "start_node",
+    }:
+        return node
+    elif param_name in {"nodes", "candidate_nodes"}:
+        child_nodes = [
+            child for child in node.find_all(True, recursive=False)
+            if isinstance(child, Tag)
+        ]
+        return child_nodes or [node]
+    elif param_name == "context":
+        return context
+    elif param_name in {"soup", "document"}:
+        return soup
+    elif param_name in {"first_indent", "second_indent"}:
+        return _resolve_indent_tuple(param_name, soup, strategy_instance, indent_state)
+    else:
+        return text
+
+
+def _execute_direct_strategy_method(
+    strategy_instance: Any,
+    target: str,
+    soup: BeautifulSoup,
+    context: MockBookStyleContext,
+    results: dict[str, Any],
+    expected: dict[str, Any],
+) -> None:
+    """Executes helper/predicate methods named directly in the YAML target."""
+    _, method_name = target.split(".", 1)
+    method_name = method_name.split(" ", 1)[0]
+    method = getattr(strategy_instance, method_name)
+
+    node = next(iter(soup.find_all(["blockquote", "div", "p", "table", "pre"])), soup.body or soup)
+    text = node.get_text() if isinstance(node, Tag) else str(node)
+
+    indent_state: dict[str, Any] = {"tuples": None, "index": 0}
+    signature = inspect.signature(method)
+    args = []
+
+    for parameter in signature.parameters.values():
+        if parameter.kind in (
+            inspect.Parameter.VAR_POSITIONAL,
+            inspect.Parameter.VAR_KEYWORD,
+        ):
+            continue
+
+        arg = _build_method_args(
+            parameter, node, text, soup, context, strategy_instance, indent_state
+        )
+        args.append(arg)
+
+    actual = method(*args)
+
+    expected_result = next(
+        (
+            expected[key]
+            for key in ("result", "return_value", "value")
+            if key in expected
+        ),
+        None,
+    )
+    if expected_result is not None and actual != expected_result:
+        results["passed"] = False
+        results["failures"].append(
+            (
+                "RESULT_MISMATCH",
+                f"Expected {expected_result!r}, got {actual!r}.",
+            ),
+        )
+
 
 def _execute_handle_method(
     strategy_instance: Any,
@@ -1154,11 +1296,28 @@ def _run_strategy_test(
         context,
     )
 
-    _dispatch_strategy_execution(strategy_instance, soup, context)
+    target_expression = case["target"].split(" ", 1)[0]
+    target_parts = target_expression.split(".", 1)
+    target_method = target_parts[1] if len(target_parts) == 2 else None
 
-    # After mutation, validate telemetry against the mock_processor
-    expected_telemetry = case["expected"].get("telemetry", {})
-    if mock_processor:
+    lifecycle_methods = {"process", "handle", "find_and_apply"}
+
+    if target_method and target_method not in lifecycle_methods:
+        results["_direct_strategy_test"] = True
+        _execute_direct_strategy_method(
+            strategy_instance,
+            target_expression,
+            soup,
+            context,
+            results,
+            case["expected"],
+        )
+    else:
+        _dispatch_strategy_execution(strategy_instance, soup, context)
+
+    # Direct helper tests do not validate processor telemetry.
+    if not results.get("_direct_strategy_test") and mock_processor:
+        expected_telemetry = case["expected"].get("telemetry", {})
         _validate_telemetry(mock_processor, expected_telemetry, results)
 
 
@@ -1323,24 +1482,27 @@ def run_single_test_case(
     )
     is_noop_test = any(noop_target in target_str for noop_target in noop_targets)
     is_strategy_test_file = "strategies.yaml" in suite_path
+    target_class_name = target_str.split(".", 1)[0].split(" ", 1)[0]
+    is_strategy_target = (
+        is_strategy_test_file
+        or target_class_name.endswith(("Strategy", "Helper"))
+    )
+
     if is_noop_test:
-        pass  # No action, just validate HTML/telemetry
-    elif (
-        is_strategy_test_file and package_name != "poetry"
-    ) or "Handler" in target_str:
+        pass
+    elif is_strategy_target or "Handler" in target_str:
         _run_strategy_test(case, context, soup, package_name, results)
     elif "BookStyleContext" not in target_str:
-        # If the target is not a strategy, handler, or context, it must be a
-        # processor-level (integration) test.
         _run_processor_test(case, context, soup, package_name, results)
     else:
         _run_context_test(case, context, soup)
 
     # --- Common Validation Logic ---
 
-    expected_html_raw = case["expected"].get("html") or case["expected"].get(
-        "mutated_node",
-    )
+    expected_html_raw = None
+    if not results.get("_direct_strategy_test"):
+        expected_html_raw = case["expected"].get("html")
+
     _validate_dom_mutation(soup, expected_html_raw, results)
 
     # Note: Telemetry validation is now handled inside the conditional branches
@@ -1432,7 +1594,7 @@ def _run_suite_cases(
                 print(f"  {RED}x [FAILED]{RESET} {res['id']}: {case['target']}")
                 stats["failed_cases"] += 1
                 all_failures_report.append((suite_path, case, res["failures"]))
-        except (ValueError, KeyError, TypeError, AttributeError) as e:  
+        except (ValueError, KeyError, TypeError, AttributeError) as e:
             print(
                 f"  {YELLOW}‼ [ERROR]{RESET} {case['id']}: {case['target']} — {e}",
             )
@@ -1486,7 +1648,7 @@ def _process_suite_file(
     with open(suite_path, encoding="utf-8") as f:
         try:
             loaded_yaml = yaml.safe_load(f)
-        except yaml.YAMLError as e:  
+        except yaml.YAMLError as e:
             print(f"{RED}[YAML SYNTAX ERROR] in {suite_path}: {e}{RESET}")
             stats["error_cases"] += 1
             return

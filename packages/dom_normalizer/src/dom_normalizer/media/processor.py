@@ -61,8 +61,6 @@ from .handlers import BaseMediaHandler, get_media_handlers
 log = logging.getLogger(__name__)
 
 
-@register_processor_factory("media")
-@register_processor_factory("media_processor")
 def create_media_processor(
     context: BookStyleContext,
     **kwargs: Any,
@@ -80,6 +78,10 @@ def create_media_processor(
         output_directory=output_directory,
         book_root_path=book_root_path,
     )
+
+
+register_processor_factory("media", create_media_processor)
+register_processor_factory("media_processor", create_media_processor)
 
 
 class MediaProcessor:

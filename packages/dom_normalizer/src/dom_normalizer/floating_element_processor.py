@@ -70,7 +70,6 @@ from .core.dom_utils import (
 log = logging.getLogger(__name__)
 
 
-@register_processor_factory("floating_element_processor")
 class FloatingElementProcessor:
     """Isolates non-linear layout components like sidebars into <aside> tags."""
 
@@ -567,3 +566,8 @@ class FloatingElementProcessor:
                 "execution_timestamp": get_utc_timestamp(),
             },
         }
+
+register_processor_factory(
+    "floating_element_processor",
+    FloatingElementProcessor,
+)

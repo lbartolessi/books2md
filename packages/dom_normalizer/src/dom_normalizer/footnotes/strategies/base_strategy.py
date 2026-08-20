@@ -305,7 +305,10 @@ class BaseFootnoteStrategy(ABC):
         """
         payload = {
             "raw_href": str(raw_href),
-            "callout_identifier": get_tag_identifier(callout),
+            "callout_identifier": get_tag_identifier(
+                callout,
+                attr_value_limit=100,
+            ),
         }
         if normalized_href is not None:
             payload["normalized_href"] = normalized_href
@@ -331,7 +334,12 @@ class BaseFootnoteStrategy(ABC):
         collector.add(
             key=AnomalyKey.DANGLING_REF,
             message=f"Callout points to missing note body '#{target_id}'.",
-            payload={"callout_identifier": get_tag_identifier(callout)},
+            payload={
+                "callout_identifier": get_tag_identifier(
+                    callout,
+                    attr_value_limit=100,
+                ),
+            },
         )
 
     def _extract_note_bodies(

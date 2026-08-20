@@ -63,7 +63,6 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
-@register_processor_factory("footnotes")
 def create_footnote_processor(
     context: BookStyleContext,
     **kwargs: Any,
@@ -78,6 +77,9 @@ def create_footnote_processor(
     )
     strategies.append(AnomalyStrategy())
     return FootnoteProcessor(context, strategies=strategies)
+
+
+register_processor_factory("footnotes", create_footnote_processor)
 
 
 class FootnoteProcessor:
@@ -197,7 +199,7 @@ class FootnoteProcessor:
                     strategy.__class__.__name__,
                 )
                 continue  # Continue to next strategy
-            except Exception:  
+            except Exception:
                 # Unexpected critical errors in strategy execution
                 log.critical(
                     "Unexpected critical error in footnote strategy '%s'",

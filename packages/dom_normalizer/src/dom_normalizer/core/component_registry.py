@@ -9,31 +9,64 @@ that knows how to instantiate it with its specific dependencies.
 from collections.abc import Callable
 from typing import Any, TypeVar
 
+from dom_normalizer.core.protocols import NormalizerStrategy
+
 # The factory takes a context and optional kwargs and returns a processor instance.
 ProcessorFactory = Callable[..., Any]
 
-PROCESSOR_FACTORIES: dict[str, ProcessorFactory] = {}
+_PROCESSOR_FACTORIES: dict[str, ProcessorFactory] = {}
 
 # Use a TypeVar to create a generic decorator that works for both functions and classes.
 F = TypeVar("F", bound=Callable[..., Any])
 
+def register_processor_factory(
+    name: str,
+    factory_func: ProcessorFactory | None = None,
+):
+    """Registers a factory and also supports decorator usage."""
 
-def register_processor_factory(name: str) -> Callable[[F], F]:
-    """A decorator to register a processor factory function or class in the global registry."""
+    if factory_func is not None:
+        _PROCESSOR_FACTORIES[name] = factory_func
 
-    def decorator(factory: F) -> F:
-        if name in PROCESSOR_FACTORIES:
-            raise ValueError(f"Processor factory for '{name}' already registered.")
-        PROCESSOR_FACTORIES[name] = factory
-        return factory
+    def decorator(component):
+        _PROCESSOR_FACTORIES[name] = factory_func or component
+        return component
 
     return decorator
 
 
-def create_processor(name: str, context: Any, **kwargs: Any) -> Any:
-    """Creates a processor instance using a registered factory."""
+def get_processor_factory(name: str) -> ProcessorFactory:
     try:
-        factory = PROCESSOR_FACTORIES[name]
-        return factory(context=context, **kwargs)
-    except KeyError as e:
-        raise ImportError(f"Processor factory for '{name}' not found. Available: {list(PROCESSOR_FACTORIES.keys())}") from e
+        return _PROCESSOR_FACTORIES[name]
+    except KeyError as exc:
+        raise KeyError(f"No processor factory registered for: {name}") from exc
+
+class ComponentRegistry:
+    def init(self) -> None: self._registry: dict[str, type[NormalizerStrategy]] = {}
+
+
+    def register(self, tag_name: str, strategy_class: type[NormalizerStrategy]) -> None:
+        """
+        Registra una nueva estrategia de normalización para una etiqueta específica.
+        """
+        self._registry[tag_name] = strategy_class
+
+    def get_strategy(self, tag_name: str) -> type[NormalizerStrategy]:
+        """
+        Obtiene la clase de estrategia registrada para una etiqueta específica.
+        """
+        if tag_name not in self._registry:
+            raise KeyError(f"No strategy registered for tag: {tag_name}")
+        return self._registry[tag_name]
+
+    def has_strategy(self, tag_name: str) -> bool:
+        """
+        Verifica si existe una estrategia registrada para la etiqueta.
+        """
+        return tag_name in self._registry
+
+    def list_registered_components(self) -> list[str]:
+        """
+        Retorna una lista de todas las etiquetas con estrategias registradas.
+        """
+        return list(self._registry.keys())

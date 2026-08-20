@@ -22,3 +22,7 @@ from . import (
     poetry,  # pyright: ignore[reportUnusedImport] # noqa: F401
     table_normalizer,  # pyright: ignore[reportUnusedImport] # noqa: F401
 )
+from .media import (
+    processor as media_processor,  # pyright: ignore[reportUnusedImport] # noqa: F401
+)
+from .poetry import normalizer  # pyright: ignore[reportUnusedImport] # noqa: F401

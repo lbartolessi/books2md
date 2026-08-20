@@ -26,7 +26,6 @@ from .strategies import (
 )
 
 
-@register_processor_factory("lists")
 def create_list_normalizer(context: BookStyleContext, **kwargs: Any) -> ListNormalizer:
     """Factory function to create a ListNormalizer instance with its strategies."""
     strategies = [
@@ -36,6 +35,9 @@ def create_list_normalizer(context: BookStyleContext, **kwargs: Any) -> ListNorm
     ]
     # This assumes ListNormalizer's __init__ is `(self, context, strategies)`
     return ListNormalizer(context, strategies=strategies)
+
+
+register_processor_factory("lists", factory_func=create_list_normalizer)
 
 
 class ListNormalizer:

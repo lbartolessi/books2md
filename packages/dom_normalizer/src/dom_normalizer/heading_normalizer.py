@@ -73,7 +73,7 @@ class _DemotionStrategy:
     to evaluate a heading against these thresholds.
     """
 
-    def __init__(self, hn_config: _HeadingNormalizerConfig) -> None:
+    def __init__(self, hn_config: "_HeadingNormalizerConfig") -> None:
         """Initializes the demotion strategy with the heading normalizer's configuration."""
         self.hn_config = hn_config
 
@@ -505,7 +505,6 @@ class _ClassPromotionHandler:
         return promotions
 
 
-@register_processor_factory("heading_normalizer")
 class HeadingNormalizer:
     """
     Normalizes heading elements by promoting styled paragraphs, demoting invalid
@@ -898,3 +897,6 @@ class HeadingNormalizer:
             headings_demoted_by_link_density=self.headings_demoted_by_link_density,
             hierarchy_fixes=self.hierarchy_fixes,
         )
+
+
+register_processor_factory("heading_normalizer", HeadingNormalizer)
