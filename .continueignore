@@ -1,0 +1,21 @@
+# Excluir datos y binarios
+*.epub
+*.html
+*.json
+*.log
+*.md
+
+# Excluir entornos y dependencias
+.venv/
+node_modules/
+__pycache__/
+.git/
+
+# Excluir archivos de test muy extensos
+tests/fixtures/
+
+.vscode/
+books2md.egg-info/
+packages/dom_normalizer/prompts/
+packages/dom_normalizer/references/
+packages/dom_normalizer/specs/
