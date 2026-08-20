@@ -3,21 +3,33 @@ from typing import Any, Protocol, runtime_checkable
 
 @runtime_checkable
 class NormalizerStrategy(Protocol):
-    """
-    Protocolo que define la interfaz para las estrategias de normalización de elementos DOM.
+    """Protocolo base para estrategias de normalización de DOM.
 
-    Las clases que implementen este protocolo deben proporcionar una lógica específica
-    para transformar o limpiar un elemento dado.
+    Define la interfaz mínima que debe implementar cualquier estrategia
+    encargada de transformar un nodo específico del árbol DOM.
     """
 
-    def process(self, element: Any) -> Any:
-        """
-        Procesa un elemento y retorna su forma normalizada.
+    def match(self, element: Any) -> bool:
+        """Determina si la estrategia es aplicable al nodo proporcionado.
 
         Args:
-            element (Any): El elemento DOM (o representación del mismo) a normalizar.
+            element: El nodo del DOM a evaluar.
 
         Returns:
-            Any: El elemento procesado o normalizado.
+            bool: True si la estrategia puede procesar el elemento, False en caso contrario.
+        """
+        ...
+
+    def process(self, element: Any) -> Any:
+        """Ejecuta la lógica de normalización sobre el nodo.
+
+        Args:
+            element: El nodo del DOM que será transformado.
+
+        Returns:
+            El nodo resultante tras la normalización.
+
+        Raises:
+            NotImplementedError: Si la lógica de transformación no está definida.
         """
         ...

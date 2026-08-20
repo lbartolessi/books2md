@@ -45,18 +45,25 @@ Reglas estrictas de salida:
 **Prompt para copiar a Qwen:**
 
 ```text
-Actúa como un desarrollador experto en Python. Tu tarea es refactorizar el registro de componentes.
+Actúa como un desarrollador experto en Python. Tu tarea es implementar el siguiente cambio atómico en el proyecto.
 Contexto de la tarea:
-- Archivo a modificar: packages/dom_normalizer/src/dom_normalizer/core/component_registry.py
-- Objetivo: Hacer que el registro sea consciente del nuevo protocolo `NormalizerStrategy`.
+
+- Archivo a modificar: src/dom_normalizer/strategies/**init**.py
+- Objetivo: Definir un typing.Protocol llamado StrategyProtocol que declare los métodos públicos que deben implementar todas las estrategias de normalización (p.ej., `normalize(self, dom: Any) -> Any`). Añadir docstring descriptivo y anotaciones de tipos estrictas.
+
 Instrucciones de implementación:
-1. Importar `NormalizerStrategy` desde `dom_normalizer.core.protocols`.
-2. Modificar las firmas de los métodos para exigir el cumplimiento del protocolo.
-3. Asegurar que no haya pérdida de funcionalidad existente.
+
+1. Importar `Protocol` y `runtime_checkable` de `typing`.
+2. Definir `@runtime_checkable class StrategyProtocol(Protocol):` con los métodos requeridos.
+3. Documentar cada método con estilo Google docstring.
+4. Repetir el mismo proceso en src/dom_normalizer/analyzers/**init**.py creando AnalyzerProtocol con al menos `analyze(self, dom: Any) -> Any`.
 Reglas estrictas de salida:
-- NO incluyas la Cadena de Razonamiento.
-- NO incluyas explicaciones conversacionales.
+
+- NO incluyas la Cadena de Razonamiento (Chain of Thought o CoT).
+- NO incluyas explicaciones conversacionales antes o después del código.
+- Genera ÚNICAMENTE el código completo o el diff directo listo para aplicar.
 - Genera ÚNICAMENTE el código completo del archivo refactorizado.
+
 ```
 
 #### Paso 3: Sincronización de Documentación
